@@ -1,0 +1,15 @@
+[patch."https://github.com/Starry-OS/axdisplay.git".axdisplay]
+path = "crates/axdisplay"
+
+[patch."https://github.com/Starry-OS/arch_boot.git".arch_boot]
+path = "crates/arch_boot"
+
+[profile.dev]
+lto = true
+
+[profile.release]
+lto = true
+
+[workspace]
+members = ["apps/helloworld", "modules/async_axstd", "modules/async_axtask", "modules/async_axruntime", "modules/async_arceos_api", "modules/async_taskctx", "modules/async_axfeat", "modules/async-std"]
+resolver = "2"

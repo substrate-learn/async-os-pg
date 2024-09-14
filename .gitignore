@@ -1,0 +1,6 @@
+target/
+Cargo.lock
+*.lds
+crates/
+qemu.log
+*.asm
