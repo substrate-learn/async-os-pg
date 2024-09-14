@@ -1,0 +1,33 @@
+[package]
+name = "async_taskctx"
+version = "0.1.0"
+edition = "2021"
+keywords = ["Starry", "context"]
+authors = ["Youjie Zheng <zyj578335934@gmail.com>"]
+description = "A crate to define the basic task context, used for task scheduling."
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+preempt = ["multitask"]
+fp_simd = []
+multitask = []
+tls = []
+monolithic = []
+future= []
+
+default = []
+[dependencies]
+log = "0.4"
+cfg-if = "1.0"
+memory_addr = { git = "https://github.com/Starry-OS/memory_addr.git" }
+lazy_init = { git = "https://github.com/Starry-OS/lazy_init.git" ,optional = true }
+static_assertions = "1.1.0"
+numeric-enum-macro = { git = "https://github.com/mexus/numeric-enum-macro" }
+axconfig = { git = "https://github.com/Starry-OS/axconfig.git" }
+
+[target.'cfg(target_arch = "x86_64")'.dependencies]
+x86 = "0.52"
+
+[target.'cfg(target_arch = "aarch64")'.dependencies]
+aarch64-cpu = "9.3"
+tock-registers = "0.8"
