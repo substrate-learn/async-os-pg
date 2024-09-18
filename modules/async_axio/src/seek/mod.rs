@@ -8,7 +8,7 @@ use seek::SeekFuture;
 
     [`Seek`]: ../trait.Seek.html
 "#]
-pub trait SeekExt: AsyncSeek {
+pub trait AsyncSeekExt: AsyncSeek {
     #[doc = r#"
         Seeks to a new position in a byte stream.
 
@@ -44,4 +44,4 @@ pub trait SeekExt: AsyncSeek {
     }
 }
 
-impl<T: AsyncSeek + ?Sized> SeekExt for T {}
+impl<T: AsyncSeek + ?Sized> AsyncSeekExt for T {}

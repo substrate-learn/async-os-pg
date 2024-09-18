@@ -36,7 +36,7 @@ LOG ?= off
 V ?=
 LIBC_DIR = tools/axlibc
 # App options
-A ?= apps/monolithic_userboot
+A ?= apps/helloworld
 APP ?= $(A)
 FEATURES ?=
 APP_FEATURES ?=

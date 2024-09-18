@@ -3,7 +3,7 @@
 #![cfg_attr(not(doc), no_std)]
 #![feature(doc_auto_cfg)]
 
-#[cfg(feature = "alloc")]
+// #[cfg(feature = "alloc")]
 extern crate alloc;
 
 use core::fmt;
@@ -18,11 +18,20 @@ mod error;
 mod impls;
 mod ioslice;
 mod stream;
+mod buf_reader;
+pub use buf_reader::AsyncBufReader;
+pub use buf_read::*;
+pub use read::*;
+pub use seek::*;
+pub use stream::*;
+pub use write::*;
 
 pub mod prelude;
 
 pub use self::buffered::BufReader;
 pub use self::error::{Error, Result};
+
+pub(crate) const DEFAULT_BUF_SIZE: usize = 1024;
 
 use alloc::boxed::Box;
 #[cfg(feature = "alloc")]
@@ -90,6 +99,10 @@ pub trait Read {
         }
         Ok(buf_len)
     }
+
+    fn read_vectored(&mut self, bufs: &mut [IoSliceMut<'_>]) -> Result<usize> {
+        default_read_vectored(|b| self.read(b), bufs)
+    }
 }
 
 /// A trait for objects which are byte-oriented sinks.
@@ -151,6 +164,7 @@ pub trait Write {
             }
         }
     }
+    
 }
 
 /// The `Seek` trait provides a cursor which can be moved within a stream of
@@ -603,6 +617,30 @@ where
     }
 }
 
+macro_rules! delegate_async_read_to_stdio {
+    () => {
+        fn poll_read(
+            mut self: Pin<&mut Self>,
+            _: &mut Context<'_>,
+            buf: &mut [u8],
+        ) -> Poll<Result<usize>> {
+            Poll::Ready(Read::read(&mut *self, buf))
+        }
+
+        fn poll_read_vectored(
+            mut self: Pin<&mut Self>,
+            _: &mut Context<'_>,
+            bufs: &mut [IoSliceMut<'_>],
+        ) -> Poll<Result<usize>> {
+            Poll::Ready(Read::read_vectored(&mut *self, bufs))
+        }
+    };
+}
+
+impl AsyncRead for &[u8] {
+    delegate_async_read_to_stdio!();
+}
+
 macro_rules! deref_async_write {
     () => {
         fn poll_write(
@@ -736,3 +774,13 @@ where
         self.get_mut().as_mut().consume(amt)
     }
 }
+
+
+pub(crate) fn default_read_vectored<F>(read: F, bufs: &mut [IoSliceMut<'_>]) -> Result<usize>
+where
+    F: FnOnce(&mut [u8]) -> Result<usize>,
+{
+    let buf = bufs.iter_mut().find(|b| !b.is_empty()).map_or(&mut [][..], |b| &mut **b);
+    read(buf)
+}
+

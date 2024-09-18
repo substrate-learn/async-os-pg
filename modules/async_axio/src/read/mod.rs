@@ -26,7 +26,7 @@ use crate::{ioslice::IoSliceMut, AsyncRead};
 
     [`Read`]: ../trait.Read.html
 "#]
-pub trait ReadExt: AsyncRead {
+pub trait AsyncReadExt: AsyncRead {
     #[doc = r#"
         Reads some bytes from the byte stream.
 
@@ -371,7 +371,7 @@ pub trait ReadExt: AsyncRead {
     }
 }
 
-impl<T: AsyncRead + ?Sized> ReadExt for T {}
+impl<T: AsyncRead + ?Sized> AsyncReadExt for T {}
 
 /// Initializes a buffer if necessary.
 ///

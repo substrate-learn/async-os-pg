@@ -1,4 +1,4 @@
-use core::{future::Future, task::Poll};
+use core::{future::Future, task::{Context, Poll, Waker}};
 
 use crate::{executor::{CurrentExecutor, Executor}, task::{new_task, CurrentTask, TaskState}, AxTaskRef, Scheduler};
 use alloc::{string::String, boxed::Box};
@@ -27,6 +27,10 @@ pub fn current() -> CurrentTask {
     CurrentTask::get()
 }
 
+pub fn clear_current() {
+    CurrentTask::clean_current();
+}
+
 /// Initializes the task scheduler (for the primary CPU).
 pub fn init_scheduler() {
     info!("Initialize scheduling...");
@@ -42,7 +46,7 @@ pub fn init_scheduler_secondary() {
 
 /// Exits the current task.
 pub fn exit(_exit_code: i32) -> ! {
-    unimplemented!()
+    axhal::misc::terminate();
 }
 
 /// Handles periodic timer ticks for the task manager.
@@ -62,6 +66,7 @@ extern "C" fn main() {
 /// The idle task routine.
 ///
 /// It runs an infinite loop that keeps calling [`yield_now()`].
+#[no_mangle]
 pub fn run_idle() -> ! {
     current_executor().run()
 }
@@ -100,6 +105,7 @@ pub fn sleep(dur: core::time::Duration) -> SleepFuture {
     SleepFuture::new(axhal::time::current_time() + dur)
 }
 
+#[derive(Debug)]
 pub struct SleepFuture {
     has_sleep: bool,
     deadline: axhal::time::TimeValue,
@@ -127,6 +133,10 @@ impl Future for SleepFuture {
             Poll::Ready(axhal::time::current_time() >= self.deadline)
         }
     }
+}
+
+pub fn current_waker() -> Waker {
+    crate::waker::waker_from_task(current().as_task_ref().clone())
 }
 
 /// Current task is going to sleep, it will be woken up at the given deadline.

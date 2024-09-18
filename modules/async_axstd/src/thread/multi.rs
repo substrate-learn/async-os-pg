@@ -176,13 +176,42 @@ impl<T> JoinHandle<T> {
     ///
     /// This function will return immediately if the associated thread has
     /// already finished.
-    pub async fn join(mut self) -> io::Result<T> {
-        api::ax_wait_for_exit(self.native).await.ok_or_else(|| ax_err_type!(BadState))?;
-        Arc::get_mut(&mut self.packet)
-            .unwrap()
-            .result
-            .get_mut()
-            .take()
-            .ok_or_else(|| ax_err_type!(BadState))
+    pub fn join(self) -> JoinFutureHandle<T> {
+        let inner = api::ax_wait_for_exit(self.native);
+        JoinFutureHandle::new(inner, self.packet)
+    }
+}
+
+use core::task::{Poll, Context};
+use core::pin::Pin;
+use arceos_api::task::AxJoinFuture;
+
+pub struct JoinFutureHandle<T> {
+    inner: AxJoinFuture,
+    packet: Arc<Packet<T>>,
+}
+
+impl<T> JoinFutureHandle<T> {
+    fn new(inner: AxJoinFuture, packet: Arc<Packet<T>>) -> Self {
+        Self { inner, packet }
+    }
+}
+
+impl<T> Future for JoinFutureHandle<T> {
+    type Output = io::Result<T>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let Self { inner, packet } = self.get_mut();
+        Pin::new(inner).as_mut().poll(cx).map(|res| {
+            res.map_or_else(
+                || Err(ax_err_type!(BadState)), 
+                |_| Arc::get_mut(packet)
+                        .unwrap()
+                        .result
+                        .get_mut()
+                        .take()
+                        .ok_or_else(|| ax_err_type!(BadState))
+            )
+        })
     }
 }

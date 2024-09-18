@@ -1,8 +1,9 @@
-use core::{task::{Poll, Waker, Context}, future::Future, pin::Pin};
+use core::task::{Context, Poll, Waker};
 use spinlock::SpinNoIrq;
-use crate::{wait_list::WaitTaskList, SleepFuture};
+use crate::wait_list::WaitTaskList;
 use crate::wait_list::WaitWakerNode;
-use alloc::{sync::Arc, boxed::Box};
+use alloc::sync::Arc;
+
 /// A queue to store sleeping tasks.
 ///
 /// # Examples
@@ -36,157 +37,12 @@ macro_rules! declare_wait {
     };
 }
 
-pub struct WaitFuture<'a> {
-    wait_queue: &'a WaitQueue,
-    polled_once: bool,
-}
-
-impl<'a> WaitFuture<'a> {
-    pub fn new(wait_queue: &'a WaitQueue) -> Self {
-        Self {
-            wait_queue,
-            polled_once: false,
-        }
-    }
-}
-
-impl<'a> Future for WaitFuture<'a> {
-    type Output = ();
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let waker_node = Arc::new(WaitWakerNode::new(cx.waker().clone()));
-        let Self { wait_queue, polled_once} = self.get_mut();
-        if !*polled_once {
-            *polled_once = true;
-            wait_queue.queue.lock().prepare_to_wait(waker_node);
-            Poll::Pending
-        } else {
-            wait_queue.queue.lock().remove(&waker_node);
-            Poll::Ready(())
-        }
-    }
-}
-
-pub struct WaitUntilFuture<'a> {
-    wait_queue: &'a WaitQueue,
-    condition: *mut dyn FnOnce() -> bool,
-}
-
-impl<'a> WaitUntilFuture<'a> {
-    pub fn new<F: FnOnce() -> bool>(wait_queue: &'a WaitQueue, condition: F) -> Self {
-        Self {
-            wait_queue,
-            condition: Box::into_raw(Box::new(condition)),
-        }
-    }
-}
-
-impl<'a> Future for WaitUntilFuture<'a> {
-    type Output = ();
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let waker_node = Arc::new(WaitWakerNode::new(cx.waker().clone()));
-        let Self { wait_queue, condition} = self.get_mut();
-        // let wait_queue = self.wait_queue;
-        // let condition = Pin::new(Box::new(self.condition));
-        if unsafe { Box::from_raw(*condition)() } {
-            wait_queue.queue.lock().remove(&waker_node);
-            Poll::Ready(())
-        } else {
-            wait_queue.queue.lock().prepare_to_wait(waker_node);
-            Poll::Pending
-        }
-    }
-}
-
-pub struct WaitTimeoutFuture {
-    wait_queue: Arc<WaitQueue>,
-    sleep_future: SleepFuture,
-}
-
-impl WaitTimeoutFuture {
-    pub fn new(wait_queue: Arc<WaitQueue>, dur: core::time::Duration) -> Self {
-        Self {
-            wait_queue,
-            sleep_future: SleepFuture::new(axhal::time::current_time() + dur),
-        }
-    }
-}
-
-impl Future for WaitTimeoutFuture {
-    type Output = bool;
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let waker_node = Arc::new(WaitWakerNode::new(cx.waker().clone()));
-        let Self { wait_queue, sleep_future } = self.get_mut();
-        match Pin::new(sleep_future).as_mut().poll(cx) {
-            Poll::Ready(timeout) => {
-                wait_queue.queue.lock().remove(&waker_node);
-                Poll::Ready(timeout)
-            },
-            Poll::Pending => {
-                wait_queue.queue.lock().prepare_to_wait(waker_node);
-                Poll::Pending
-            },
-        }
-    }
-}
-
-pub struct WaitTimeoutUntilFuture {
-    wait_queue: Arc<WaitQueue>,
-    sleep_future: SleepFuture,
-    deadline: core::time::Duration,
-    condition: fn() -> bool,
-}
-
-impl WaitTimeoutUntilFuture {
-    pub fn new(wait_queue: Arc<WaitQueue>, dur: core::time::Duration, condition: fn() -> bool) -> Self {
-        let deadline = axhal::time::current_time() + dur;
-        Self {
-            wait_queue,
-            sleep_future: SleepFuture::new(deadline),
-            deadline,
-            condition,
-        }
-    }
-}
-
-impl Future for WaitTimeoutUntilFuture {
-    type Output = bool;
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let waker_node = Arc::new(WaitWakerNode::new(cx.waker().clone()));
-        let Self { 
-            wait_queue, 
-            sleep_future, 
-            deadline,
-            condition 
-        } = self.get_mut();
-        if !condition() {
-            match Pin::new(sleep_future).as_mut().poll(cx) {
-                Poll::Ready(timeout) => {
-                    if timeout {
-                        wait_queue.queue.lock().remove(&waker_node);
-                        Poll::Ready(true)
-                    } else {
-                        wait_queue.queue.lock().prepare_to_wait(waker_node);
-                        Poll::Pending
-                    }
-                },
-                Poll::Pending => {
-                    wait_queue.queue.lock().prepare_to_wait(waker_node);
-                    Poll::Pending
-                },
-            }
-        } else {
-            wait_queue.queue.lock().remove(&waker_node);
-            return Poll::Ready(axhal::time::current_time() >= *deadline);
-        }
-    }
-}
-
 pub struct WaitQueue {
     // Support queue lock by external caller,use SpinNoIrq
     // Arceos SpinNoirq current implementation implies irq_save,
     // so it can be nested
     // use linked list has good performance
-    pub(crate) queue: SpinNoIrq<WaitTaskList>,
+    queue: SpinNoIrq<WaitTaskList>,
 }
 
 impl WaitQueue {
@@ -197,8 +53,76 @@ impl WaitQueue {
         }
     }
 
-    pub fn wait(&self) -> WaitFuture {
-        WaitFuture::new(self)
+    pub fn wait(&self, cx: &mut Context<'_>, flag: bool) -> Poll<()> {
+        let waker_node = Arc::new(WaitWakerNode::new(cx.waker().clone()));
+        if !flag {
+            self.queue.lock().prepare_to_wait(waker_node);
+            Poll::Pending
+        } else {
+            self.queue.lock().remove(&waker_node);
+            Poll::Ready(())
+        }
+    }
+
+    pub fn wait_until(
+        &self, 
+        cx: &mut Context<'_>, 
+        condition: impl Fn() -> bool
+    ) -> Poll<()> {
+        let waker_node = Arc::new(WaitWakerNode::new(cx.waker().clone()));
+        if condition() {
+            self.queue.lock().remove(&waker_node);
+            Poll::Ready(())
+        } else {
+            self.queue.lock().prepare_to_wait(waker_node);
+            Poll::Pending
+        }
+    }
+
+    /// If the arg is duration, the deadline must be stored in somewhere. 
+    /// Otherwise, the deadline will changed with the current_time.
+    /// So the arg is the deadline.
+    #[cfg(feature = "irq")]
+    pub fn wait_timeout(
+        &self, 
+        cx: &mut Context<'_>, 
+        deadline: axhal::time::TimeValue,
+        flag: bool
+    ) -> Poll<bool> {
+        let waker_node = Arc::new(WaitWakerNode::new(cx.waker().clone()));
+        if !flag {
+            self.queue.lock().prepare_to_wait(waker_node);
+            crate::timers::set_alarm_wakeup(deadline, cx.waker().clone());
+            Poll::Pending
+        } else {
+            crate::timers::cancel_alarm(cx.waker());
+            self.queue.lock().remove(&waker_node);
+            Poll::Ready(axhal::time::current_time() >= deadline)
+        }
+    }
+
+    #[cfg(feature = "irq")]
+    pub fn wait_timeout_until(
+        &self, 
+        cx: &mut Context<'_>, 
+        deadline: axhal::time::TimeValue,
+        condition: impl Fn() -> bool
+    ) -> Poll<bool>{
+        let waker_node = Arc::new(WaitWakerNode::new(cx.waker().clone()));
+        let current_time = axhal::time::current_time();
+        if condition() {
+            Poll::Ready(current_time >= deadline)
+        } else {
+            if current_time >= deadline {
+                crate::timers::cancel_alarm(cx.waker());
+                self.queue.lock().remove(&waker_node);
+                Poll::Ready(true)
+            } else {
+                self.queue.lock().prepare_to_wait(waker_node);
+                crate::timers::set_alarm_wakeup(deadline, cx.waker().clone());
+                Poll::Pending
+            }
+        }
     }
 
     /// Wake up the given task in the wait queue.

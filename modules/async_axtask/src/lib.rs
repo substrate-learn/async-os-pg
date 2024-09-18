@@ -27,6 +27,7 @@ pub use schedule::schedule;
 /// The reference type of a task.
 pub type AxTaskRef = alloc::sync::Arc<AxTask>;
 use crate::task::ScheduleTask;
+pub use task::TaskState;
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "sched_rr")] {

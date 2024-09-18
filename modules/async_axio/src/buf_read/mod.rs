@@ -22,7 +22,7 @@ use crate::{Result, AsyncBufRead};
 
     [`BufRead`]: ../trait.BufRead.html
 "#]
-pub trait BufReadExt: AsyncBufRead {
+pub trait AsyncBufReadExt: AsyncBufRead {
     #[doc = r#"
         Reads all bytes into `buf` until the delimiter `byte` or EOF is reached.
 
@@ -237,9 +237,9 @@ pub trait BufReadExt: AsyncBufRead {
     }
 }
 
-impl<T: AsyncBufRead + ?Sized> BufReadExt for T {}
+impl<T: AsyncBufRead + ?Sized> AsyncBufReadExt for T {}
 
-pub(crate) fn read_until_internal<R: BufReadExt + ?Sized>(
+pub(crate) fn read_until_internal<R: AsyncBufReadExt + ?Sized>(
     mut reader: Pin<&mut R>,
     cx: &mut Context<'_>,
     byte: u8,

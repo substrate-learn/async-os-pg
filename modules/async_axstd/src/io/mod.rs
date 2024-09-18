@@ -4,6 +4,7 @@ mod stdio;
 
 pub use axio::prelude;
 pub use axio::{BufRead, BufReader, Error, Read, Seek, SeekFrom, Write};
+pub use axio::{AsyncBufReader, AsyncBufRead, AsyncRead, AsyncWrite, AsyncSeek, AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, AsyncSeekExt};
 
 #[doc(hidden)]
 pub use self::stdio::__print_impl;

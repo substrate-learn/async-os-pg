@@ -81,6 +81,8 @@ pub mod stdio {
 /// Multi-threading management.
 pub mod task {
     use core::future::Future;
+    use core::task::Context;
+    pub use axtask::JoinFuture as AxJoinFuture;
 
     define_api_type! {
         @cfg "multitask";
@@ -102,12 +104,6 @@ pub mod task {
 
         // /// Exits the current task with the given exit code.
         // pub fn ax_exit(exit_code: i32) -> !;
-    }
-
-    define_api_type! {
-        @cfg "multitask";
-        pub type AxWaitExitFuture;
-        pub type AxWaitQueueFuture;
     }
 
     define_api! {
@@ -133,16 +129,18 @@ pub mod task {
 
         /// Waits for the given task to exit, and returns its exit code (the
         /// argument of [`ax_exit`]).
-        pub fn ax_wait_for_exit(task: AxTaskHandle) -> AxWaitExitFuture;
+        pub fn ax_wait_for_exit(task: AxTaskHandle) -> axtask::JoinFuture;
 
         /// Blocks the current task and put it into the wait queue, until the
         /// given condition becomes true, or the the given duration has elapsed
         /// (if specified).
         pub fn ax_wait_queue_wait(
             wq: &AxWaitQueueHandle,
+            cx: &mut Context<'_>, 
             until_condition: impl Fn() -> bool,
             timeout: Option<core::time::Duration>,
-        ) -> AxWaitQueueFuture;
+        ) -> core::task::Poll<bool>;
+
     }
 
 }

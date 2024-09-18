@@ -5,27 +5,33 @@
 extern crate async_axstd;
 extern crate alloc;
 
-use core::{future::Future, pin::Pin};
+use core::{future::Future, pin::Pin, time::Duration};
 use alloc::boxed::Box;
 
 #[used]
 #[no_mangle]
-static async_main: fn() -> BoxFut = keep_name;
+static ASYNC_MAIN: fn() -> BoxFut = keep_name;
 
 type BoxFut = Pin<Box<dyn Future<Output = i32> + Send + 'static>>;
+
+use async_axstd::sync::Mutex;
+static A: Mutex<i32> = Mutex::new(23);
 
 #[no_mangle]
 fn keep_name() -> BoxFut {
     Box::pin(async {
-        for i in 0..5 {
-            let b = i;
-            let a = async_axstd::thread::spawn(async move {
-                async_axstd::println!("Hello from a thread! {:?}", async_axstd::thread::current().id());
-                b
-            }).join().await;
-            async_axstd::println!("Thread returned: {:?}", a);
-        }
-        async_axstd::println!("Hello, world!");
+        let mut b = A.lock().await;
+        async_axstd::println!("Mutex locked: {:?}", *b);
+        *b = 34;
+        // drop(b);
+        let _ = async_axstd::thread::spawn(async {
+            let a = A.lock().await;
+            async_axstd::println!("spawn Mutex locked: {:?}", *a);
+            0
+        }).join();
+        async_axstd::thread::sleep(Duration::from_millis(1)).await;
+        drop(b);
+        async_axstd::thread::sleep(Duration::from_millis(1)).await;
         0
     })
 }

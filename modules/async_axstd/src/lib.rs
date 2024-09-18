@@ -49,6 +49,7 @@
 #![cfg_attr(all(not(test), not(doc)), no_std)]
 #![feature(doc_cfg)]
 #![feature(doc_auto_cfg)]
+#![feature(noop_waker)]
 #[cfg(feature = "alloc")]
 extern crate alloc;
 extern crate arch_boot;

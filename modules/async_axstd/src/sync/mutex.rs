@@ -28,11 +28,56 @@ pub struct MutexGuard<'a, T: ?Sized + 'a> {
     data: *mut T,
 }
 
-impl<'a, T: ?Sized + 'a> Future for MutexGuard<'a, T> {
-    type Output = ();
+unsafe impl<'a, T: ?Sized + 'a> Send for MutexGuard<'a, T> {}
 
-    fn poll(self: core::pin::Pin<&mut Self>, _: &mut core::task::Context<'_>) -> core::task::Poll<()> {
-        core::task::Poll::Ready(())
+use core::{pin::Pin, task::{Context, Poll}};
+pub struct MutexGuardFuture<'a, T: ?Sized + 'a> {
+    lock: &'a Mutex<T>,
+    data: *mut T,
+}
+
+unsafe impl<'a, T: ?Sized + 'a> Send for MutexGuardFuture<'a, T> {}
+unsafe impl<'a, T: ?Sized + 'a> Sync for MutexGuardFuture<'a, T> {}
+
+impl<'a, T: ?Sized + 'a> MutexGuardFuture<'a, T> {
+    pub fn new(
+        lock: &'a Mutex<T>,
+        data: *mut T,
+    ) -> Self {
+        Self { lock, data }
+    }
+}
+
+impl<'a, T: ?Sized + 'a> Future for MutexGuardFuture<'a, T> {
+    type Output = MutexGuard<'a, T>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let Self { lock, data } = self.get_mut();
+        let current_id = api::ax_current_task_id();
+        match lock.owner_id.compare_exchange_weak(
+            0,
+            current_id,
+            Ordering::Acquire,
+            Ordering::Relaxed,
+        ) {
+            Ok(_) => Poll::Ready(MutexGuard {
+                lock: *lock,
+                data: *data,
+            }),
+            Err(owner_id) => {
+                assert_ne!(
+                    owner_id, current_id,
+                    "Thread({}) tried to acquire mutex it already owns.",
+                    current_id,
+                );
+                api::ax_wait_queue_wait(&lock.wq, cx, || !lock.is_locked(), None).map(|_| {
+                    MutexGuard {
+                        lock: *lock,
+                        data: *data,
+                    }
+                })
+            }
+        }
     }
 }
 
@@ -77,33 +122,8 @@ impl<T: ?Sized> Mutex<T> {
     ///
     /// The returned value may be dereferenced for data access
     /// and the lock will be dropped when the guard falls out of scope.
-    pub async fn lock(&self) -> MutexGuard<T> {
-        let current_id = api::ax_current_task_id();
-        loop {
-            // Can fail to lock even if the spinlock is not locked. May be more efficient than `try_lock`
-            // when called in a loop.
-            match self.owner_id.compare_exchange_weak(
-                0,
-                current_id,
-                Ordering::Acquire,
-                Ordering::Relaxed,
-            ) {
-                Ok(_) => break,
-                Err(owner_id) => {
-                    assert_ne!(
-                        owner_id, current_id,
-                        "Thread({}) tried to acquire mutex it already owns.",
-                        current_id,
-                    );
-                    // Wait until the lock looks unlocked before retrying
-                    api::ax_wait_queue_wait(&self.wq, || !self.is_locked(), None).await;
-                }
-            }
-        }
-        MutexGuard {
-            lock: self,
-            data: unsafe { &mut *self.data.get() },
-        }
+    pub fn lock(&self) -> MutexGuardFuture<T> {
+        MutexGuardFuture::new(self, self.data.get())
     }
 
     /// Try to lock this [`Mutex`], returning a lock guard if successful.

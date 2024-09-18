@@ -1,4 +1,3 @@
-use core::future::Future;
 
 pub async fn ax_sleep_until(deadline: crate::time::AxTimeValue) {
     axtask::sleep_until(deadline).await;
@@ -10,6 +9,8 @@ pub async fn ax_yield_now() {
 
 cfg_task! {
     use core::time::Duration;
+    use core::{future::Future, pin::Pin, task::{Context, Poll}};
+    use core::ops::Deref;
 
     /// A handle to a task.
     pub struct AxTaskHandle {
@@ -37,32 +38,10 @@ cfg_task! {
         }
     }
 
-    pub struct AxWaitExitFuture {
-        inner: axtask::JoinFuture
-    }
-
-    impl AxWaitExitFuture {
-        pub fn new(inner: axtask::JoinFuture) -> Self {
-            Self { inner }
-        }
-    }
-
-    pub struct AxWaitQueueFuture {
-        #[cfg(feature = "irq")]
-        inner: axtask::WaitTimeoutUntilFuture,
-        #[cfg(not(feature = "irq"))]
-        inner: axtask::WaitUntilFuture
-    }
-
-    impl AxWaitQueueFuture {
-        #[cfg(feature = "irq")]
-        pub fn new(inner: axtask::WaitTimeoutUntilFuture) -> Self {
-            Self { inner }
-        }
-
-        #[cfg(not(feature = "irq"))]
-        pub fn new(inner: axtask::WaitUntilFuture) -> Self {
-            Self { inner }
+    impl Deref for AxWaitQueueHandle {
+        type Target = axtask::WaitQueue;
+        fn deref(&self) -> &Self::Target { 
+            &self.0
         }
     }
 
@@ -102,30 +81,27 @@ cfg_task! {
         }
     }
 
-    pub fn ax_wait_for_exit(task: AxTaskHandle) -> AxWaitExitFuture {
+    pub fn ax_wait_for_exit(task: AxTaskHandle) -> axtask::JoinFuture {
         // task.inner.join()
         // axtask::join(&task.inner).await
-        AxWaitExitFuture::new(axtask::join(&task.inner))
+        axtask::join(&task.inner)
     }
     
     pub fn ax_wait_queue_wait(
         wq: &AxWaitQueueHandle,
+        cx: &mut Context<'_>, 
         until_condition: impl Fn() -> bool,
         timeout: Option<Duration>,
-    ) -> AxWaitQueueFuture {
+    ) -> Poll<bool> {
         #[cfg(feature = "irq")]
         if let Some(dur) = timeout {
-            // return wq.0.wait_timeout_until(dur, until_condition).await;
-            let inner = axtask::WaitTimeoutUntilFuture::new(wq.0.clone(), dur, until_condition);
-            return AxWaitQueueFuture { inner };
+            let deadline = axhal::time::current_time() + dur;
+            return wq.0.wait_timeout_until(cx, deadline, until_condition);
         }
-    
         if timeout.is_some() {
             axlog::warn!("ax_wait_queue_wait: the `timeout` argument is ignored without the `irq` feature");
         }
-        let inner = axtask::WaitUntilFuture::new(wq.0.clone(), until_condition);
-        wq.0.wait_until(until_condition).await;
-        false
+        wq.0.wait_until(cx, until_condition).map(|_| false)
     }
 
 }

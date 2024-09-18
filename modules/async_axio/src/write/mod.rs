@@ -19,7 +19,7 @@ use crate::{AsyncWrite, Error};
 
     [`Write`]: ../trait.Write.html
 "#]
-pub trait WriteExt: AsyncWrite {
+pub trait AsyncWriteExt: AsyncWrite {
     #[doc = r#"
         Writes some bytes into the byte stream.
 
@@ -184,4 +184,4 @@ pub trait WriteExt: AsyncWrite {
     }
 }
 
-impl<T: AsyncWrite + ?Sized> WriteExt for T {}
+impl<T: AsyncWrite + ?Sized> AsyncWriteExt for T {}
