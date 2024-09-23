@@ -32,7 +32,7 @@ use alloc::sync::Arc;
 macro_rules! declare_wait {
     ($name: ident) => {
         let $name = Arc::new(WaitWakerNode::new($crate::waker::waker_from_task(
-            $crate::current().as_task_ref().clone()
+            $crate::current().as_task_ref()
         )));
     };
 }
@@ -53,6 +53,7 @@ impl WaitQueue {
         }
     }
 
+    /// 当前任务进入阻塞状态，将 cx 注册到等待队列中
     pub fn wait(&self, cx: &mut Context<'_>, flag: bool) -> Poll<()> {
         let waker_node = Arc::new(WaitWakerNode::new(cx.waker().clone()));
         if !flag {
@@ -64,6 +65,7 @@ impl WaitQueue {
         }
     }
 
+    /// 当前任务等待某个条件成功
     pub fn wait_until(
         &self, 
         cx: &mut Context<'_>, 
@@ -79,9 +81,9 @@ impl WaitQueue {
         }
     }
 
-    /// If the arg is duration, the deadline must be stored in somewhere. 
-    /// Otherwise, the deadline will changed with the current_time.
-    /// So the arg is the deadline.
+    /// 当前任务等待，直到 deadline
+    /// 参数使用 deadline，如果使用 Duration，则会导致每次进入这个函数都会重新计算 deadline
+    /// 从而导致一直无法唤醒
     #[cfg(feature = "irq")]
     pub fn wait_timeout(
         &self, 
@@ -101,6 +103,7 @@ impl WaitQueue {
         }
     }
 
+    /// 当前任务等待条件满足或者到达deadline
     #[cfg(feature = "irq")]
     pub fn wait_timeout_until(
         &self, 

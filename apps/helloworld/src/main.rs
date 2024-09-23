@@ -24,14 +24,16 @@ fn keep_name() -> BoxFut {
         async_axstd::println!("Mutex locked: {:?}", *b);
         *b = 34;
         // drop(b);
-        let _ = async_axstd::thread::spawn(async {
+        let j = async_axstd::thread::spawn(async {
             let a = A.lock().await;
             async_axstd::println!("spawn Mutex locked: {:?}", *a);
-            0
+            32
         }).join();
-        async_axstd::thread::sleep(Duration::from_millis(1)).await;
+        async_axstd::thread::sleep(Duration::from_secs(1)).await;
         drop(b);
-        async_axstd::thread::sleep(Duration::from_millis(1)).await;
+        let res = j.await.unwrap();
+        async_axstd::println!("res {}", res);
+        async_axstd::thread::sleep(Duration::from_secs(1)).await;
         0
     })
 }

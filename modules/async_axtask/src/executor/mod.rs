@@ -21,17 +21,17 @@ pub(crate) fn init() {
     let kexecutor = Arc::new(Executor::new());
     KERNEL_EXECUTOR.init_by(kexecutor.clone());
     unsafe { 
-        // let main_fut: fn() -> BoxFut = core::mem::transmute(ASYNC_MAIN);
-        // let main_fut = main_fut();
-        // let main_task = new_task(main_fut, "main".to_string(), axconfig::TASK_STACK_SIZE);
-        // main_task.init_executor(kexecutor.clone());
-        // Executor::add_task(main_task);
-        // executor::EXECUTORS.lock().insert(0, kexecutor.clone());
-        let main_fut = Box::pin(async { main_fut() });
+        let main_fut: fn() -> BoxFut = core::mem::transmute(ASYNC_MAIN);
+        let main_fut = main_fut();
         let main_task = new_task(main_fut, "main".to_string(), axconfig::TASK_STACK_SIZE);
         main_task.init_executor(kexecutor.clone());
         Executor::add_task(main_task);
         executor::EXECUTORS.lock().insert(0, kexecutor.clone());
+        // let main_fut = Box::pin(async { main_fut() });
+        // let main_task = new_task(main_fut, "main".to_string(), axconfig::TASK_STACK_SIZE);
+        // main_task.init_executor(kexecutor.clone());
+        // Executor::add_task(main_task);
+        // executor::EXECUTORS.lock().insert(0, kexecutor.clone());
         CurrentExecutor::init_current(kexecutor);
     };
 }

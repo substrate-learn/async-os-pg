@@ -168,6 +168,11 @@ impl CurrentTask {
         ManuallyDrop::into_inner(arc); // `call Arc::drop()` to decrease prev task reference count.
         unsafe { taskctx::set_current_task_ptr(0 as *const AxTask) };
     }
+
+    pub(crate) fn clean_current_without_drop() {
+        unsafe { taskctx::set_current_task_ptr(0 as *const AxTask) };
+    }
+
 }
 
 impl Deref for CurrentTask {
@@ -179,7 +184,7 @@ impl Deref for CurrentTask {
 
 pub(crate) fn run_future(task: AxTaskRef) {
     use core::task::{Context, Poll};
-    let waker = crate::waker::waker_from_task(task.clone());
+    let waker = crate::waker::waker_from_task(&task);
     unsafe {
         let ctx = &mut *task.ctx_mut_ptr();
         let fut = &mut (*ctx.fut.as_mut_ptr());
@@ -190,12 +195,13 @@ pub(crate) fn run_future(task: AxTaskRef) {
             task.set_exit_code(exit_code);
             task.notify_waker_for_exit();
             CurrentTask::clean_current();
-            drop(waker);
             if task.is_init() {
                 assert!(Arc::strong_count(&task) == 1, "count {}", Arc::strong_count(&task));
                 drop(task);
                 axhal::misc::terminate();
             }
+        } else {
+            CurrentTask::clean_current_without_drop();
         }
         // If the future is pending, its waker must be hold by other struts.
     }

@@ -136,7 +136,7 @@ impl Future for SleepFuture {
 }
 
 pub fn current_waker() -> Waker {
-    crate::waker::waker_from_task(current().as_task_ref().clone())
+    crate::waker::waker_from_task(current().as_task_ref())
 }
 
 /// Current task is going to sleep, it will be woken up at the given deadline.

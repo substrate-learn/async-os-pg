@@ -72,6 +72,7 @@ impl Executor {
     pub(crate) fn run(&self) -> ! {
         loop {
             if let Some(task) = self.pick_next_task() {
+                // assert!(Arc::strong_count(&task) == 1, "Task Count = 1");
                 unsafe { CurrentTask::init_current(task.clone()) };
                 run_future(task);
             } else {

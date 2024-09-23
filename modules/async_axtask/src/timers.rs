@@ -30,6 +30,7 @@ pub fn check_events() {
         let now = current_time();
         let event = TIMER_LIST.lock().expire_one(now);
         if let Some((_deadline, event)) = event {
+            log::error!("deadline {:?}, now {:?}", _deadline, now);
             event.callback(now);
         } else {
             break;
