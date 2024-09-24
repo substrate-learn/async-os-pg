@@ -71,8 +71,8 @@ impl Executor {
             if let Some(task) = self.pick_next_task() {
                 run_future(task);
             } else {
-                // #[cfg(feature = "irq")]
-                // axhal::arch::wait_for_irqs();
+                #[cfg(feature = "irq")]
+                axhal::arch::wait_for_irqs();
             }
         }
     }
