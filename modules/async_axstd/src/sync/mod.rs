@@ -7,12 +7,10 @@ pub use core::sync::atomic;
 #[doc(no_inline)]
 pub use alloc::sync::{Arc, Weak};
 
-#[cfg(feature = "multitask")]
-mod mutex;
 
 #[cfg(feature = "multitask")]
 #[doc(cfg(feature = "multitask"))]
-pub use self::mutex::{Mutex, MutexGuard, MutexGuardFuture};
+pub use axsync::{Mutex, MutexGuard, MutexGuardFuture};
 
 #[cfg(not(feature = "multitask"))]
 #[doc(cfg(not(feature = "multitask")))]
