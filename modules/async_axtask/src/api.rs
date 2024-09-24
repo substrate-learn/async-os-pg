@@ -1,15 +1,15 @@
 use core::{future::Future, task::{Poll, Waker}};
 
-use crate::{executor::{CurrentExecutor, Executor}, task::{new_task, CurrentTask, TaskState}, AxTaskRef, Scheduler};
-use alloc::{string::String, boxed::Box};
+use crate::{Executor, task::{new_task, CurrentTask, TaskState}, AxTaskRef, Scheduler};
+use alloc::{string::String, boxed::Box, sync::Arc};
 
 /// Gets the current executor.
 ///
 /// # Panics
 ///
 /// Panics if the current task is not initialized.
-pub fn current_executor() -> CurrentExecutor {
-    CurrentExecutor::get()
+pub fn current_executor() -> Arc<Executor> {
+    crate::current_processor().current_executor()
 }
 
 /// Gets the current task, or returns [`None`] if the current task is not
@@ -34,14 +34,14 @@ pub fn clear_current() {
 /// Initializes the task scheduler (for the primary CPU).
 pub fn init_scheduler() {
     info!("Initialize scheduling...");
-    crate::executor::init();
+    crate::init();
     crate::timers::init();
     info!("  use {} scheduler.", Scheduler::scheduler_name());
 }
 
 /// Initializes the task scheduler for secondary CPUs.
 pub fn init_scheduler_secondary() {
-    crate::executor::init_secondary();
+    crate::init_secondary();
 }
 
 /// Exits the current task.
@@ -63,8 +63,7 @@ pub fn on_timer_tick() {
 /// Checks if the current task should be preempted.
 /// This api called after handle irq,it may be on a
 /// disable_preempt ctx
-pub fn current_check_preempt_pending() {
-    log::error!("current_check_preempt_pending");
+pub fn current_check_preempt_pending(tf: &axhal::arch::TrapFrame) {
     if let Some(curr) = current_may_uninit() {
         // if task is already exited or blocking,
         // no need preempt, they are rescheduling
@@ -75,7 +74,7 @@ pub fn current_check_preempt_pending() {
                 curr.id_name(),
                 curr.can_preempt()
             );
-            crate::schedule::preempt_schedule()
+            crate::schedule::preempt_schedule(tf)
         }
     }
 }
@@ -177,7 +176,7 @@ pub fn wakeup_task(task: AxTaskRef) {
 /// Spawns a new task with the given parameters.
 ///
 /// Returns the task reference.
-pub fn spawn_raw<F, T>(f: F, name: String, stack_size: usize) -> AxTaskRef
+pub fn spawn_raw<F, T>(f: F, name: String, _stack_size: usize) -> AxTaskRef
 where
     F: FnOnce() -> T,
     T: Future<Output = i32> + 'static + Send,
@@ -185,11 +184,6 @@ where
     let task = new_task(
         Box::pin(f()),
         name,
-        stack_size,
-        #[cfg(feature = "monolithic")]
-        KERNEL_PROCESS_ID,
-        #[cfg(feature = "monolithic")]
-        0,
     );
     let current_executor = current_executor();
     task.init_executor(current_executor.clone());
@@ -257,26 +251,10 @@ pub fn set_priority(prio: isize) -> bool {
 }
 
 pub fn dump_curr_backtrace() {
-    dump_task_backtrace(current().as_task_ref().clone());
+    // dump_task_backtrace(current().as_task_ref().clone());
+    unimplemented!("dump_curr_backtrace")
 }
 
-pub fn dump_task_backtrace(task: AxTaskRef) {
-    use axbacktrace::{dump_backtrace, Unwind, UnwindIf, StackInfo};
-
-    let stack_low = task.get_kernel_stack_down().unwrap();
-    let stack_high = task.get_kernel_stack_top().unwrap();
-    info!("dump task: {}, stack range: {:#016x}: {:#016x}", 
-        task.id_name(), stack_low, stack_high);
-    let stack_info = StackInfo::new(stack_low,stack_high);
-
-    //Init Unwind instance from current context
-    let curr = crate::current();
-    let mut unwind = if curr.ptr_eq(&task) {
-        Unwind::new_from_cur_ctx(stack_info)
-    } else {
-        let (pc, fp) = task.ctx_unwind();
-        Unwind::new(pc,fp,stack_info)
-    };
-    // dump current task trace
-    dump_backtrace(&mut unwind);
-}
+// pub fn dump_task_backtrace(_task: AxTaskRef) {
+//     unimplemented!("dump_task_backtrace")
+// }

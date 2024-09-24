@@ -1,4 +1,3 @@
-extern crate alloc;
 use core::{alloc::Layout, ptr::NonNull};
 
 use memory_addr::VirtAddr;
@@ -41,11 +40,6 @@ impl TaskStack {
         unsafe { core::mem::transmute(self.ptr.as_ptr()) }
     }
 
-    // #[cfg(feature = "monolithic")]
-    // /// 获取内核栈第一个压入的trap上下文，防止出现内核trap嵌套
-    // pub fn get_first_trap_frame(&self) -> *mut TrapFrame {
-    //     (self.top().as_usize() - core::mem::size_of::<TrapFrame>()) as *mut TrapFrame
-    // }
 }
 
 impl Drop for TaskStack {

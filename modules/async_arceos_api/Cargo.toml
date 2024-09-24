@@ -29,7 +29,6 @@ dummy-if-not-enabled = []
 axconfig = { git = "https://github.com/Starry-OS/axconfig.git" }
 axlog = { git = "https://github.com/Starry-OS/axlog.git" }
 axerrno = { git = "https://github.com/Starry-OS/axerrno.git" }
-axhal = { git = "https://github.com/Starry-OS/axhal.git" }
 axalloc = { git = "https://github.com/Starry-OS/axalloc.git", optional = true }
 axfs = { git = "https://github.com/Starry-OS/axfs.git", optional = true }
 axnet = { git = "https://github.com/Starry-OS/axnet.git", optional = true }
@@ -39,3 +38,4 @@ axruntime = { path = "../async_axruntime", package = "async_axruntime" }
 axfeat = { path = "../async_axfeat", package = "async_axfeat" }
 axtask = { path = "../async_axtask", package = "async_axtask" }
 axio = { path = "../async_axio", package = "async_axio" }
+axhal = { path = "../async_axhal", package = "async_axhal" }

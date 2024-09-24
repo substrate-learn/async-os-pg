@@ -1,42 +1,23 @@
-//! Task context for scheduling
-//!
-//! The crate defines the needful fields for task context switching and scheduling.
-//!
-//! # Content
-//!
-//! - `tls`: Thread Local Storage (TLS) area for each task.
-//!
-//! - `stat`: Task statistics.
-//!
-//! - `preempt_disable_count`: Preemption disable counter. Only when the counter is zero, the
-//! task can be preempted. It can be used to implement preemption protection lock.
+//! 该模块在 starry 仓库的 taskctx 模块的基础上，
+//! 将与上下文切换相关的部分移除，仅仅用于记录任务的一些其他信息。
+//! 因为目标是使用协程来作为最小的任务单元，协程以协作式的方式调度为主
+//! 要为协程支持抢占式调度，不同的方式实现的抢占式调度，对上下文切换的处理不同，
+//! 因此在这个模块中要穷尽这些切换方式不能很好的保证通用性，所以将这部分内容移除。
 #![no_std]
-#![feature(naked_functions)]
 #![feature(asm_const)]
-
-mod arch;
-mod current;
-pub use current::*;
-
-pub use arch::*;
-#[cfg(feature = "tls")]
-mod tls;
+extern crate alloc;
 
 mod stat;
 pub use stat::*;
 
-cfg_if::cfg_if! {
-    if #[cfg(feature = "multitask")] {
-        mod kstack;
-        pub use kstack::*;
-        mod task;
-        pub use task::*;
-        #[cfg(feature = "future")]
-        mod ctx;
-        #[cfg(feature = "future")]
-        pub use ctx::*;
-    }
-}
+mod task;
+pub use task::*;
+
+mod kstack;
+pub use kstack::*;
+
+mod current;
+pub use current::*;
 
 /// Disables kernel preemption.
 ///

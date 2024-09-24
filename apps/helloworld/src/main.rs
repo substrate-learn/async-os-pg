@@ -34,7 +34,9 @@ fn keep_name() -> BoxFut {
         let res = j.await.unwrap();
         async_axstd::println!("res {}", res);
         async_axstd::thread::sleep(Duration::from_secs(1)).await;
-        loop {}
+        for i in 0..400 {
+            async_axstd::println!("for test preempt {}", i);
+        }
         0
     })
 }

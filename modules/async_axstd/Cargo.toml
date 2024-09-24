@@ -23,9 +23,6 @@ default = []
 # Multicore
 smp = ["axfeat/smp", "spinlock/smp", "arch_boot/smp"]
 
-# Floating point/SIMD
-fp_simd = ["axfeat/fp_simd", "arch_boot/fp_simd"]
-
 # Interrupts
 irq = ["arceos_api/irq", "axfeat/irq", "arch_boot/irq"]
 

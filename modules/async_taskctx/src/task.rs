@@ -1,32 +1,16 @@
-#[cfg(feature = "tls")]
-use crate::tls::TlsArea;
 
-use crate::{TaskStack, TimeStat};
-extern crate alloc;
+use crate::TimeStat;
 use alloc::string::String;
 
-#[allow(unused_imports)]
 use core::{
     cell::UnsafeCell,
     fmt,
-    sync::atomic::{AtomicBool, AtomicI32, AtomicU64, AtomicU8, AtomicUsize, Ordering},
+    sync::atomic::{AtomicI32, AtomicU64, Ordering},
 };
-use memory_addr::VirtAddr;
+#[cfg(feature = "preempt")]
+use core::sync::atomic::{AtomicBool, AtomicUsize};
 use alloc::boxed::Box;
-
-#[cfg(not(feature = "future"))]
-use {
-    crate::arch::TaskContext,
-    memory_addr::align_up_4k,
-};
-
-
-#[cfg(feature = "future")]
-use {
-    core::pin::Pin,
-    core::future::Future,
-    crate::ctx::Context as TaskContext,
-};
+use core::{pin::Pin, future::Future};
 
 /// A unique identifier for a thread.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -42,13 +26,6 @@ impl TaskId {
     /// Convert the task ID to a `u64`.
     pub const fn as_u64(&self) -> u64 {
         self.0
-    }
-
-    #[cfg(feature = "monolithic")]
-    /// 清空计数器，为了给单元测试使用
-    /// 保留了gc, 主调度，内核进程
-    pub fn clear() {
-        ID_COUNTER.store(5, Ordering::Relaxed);
     }
 }
 
@@ -127,15 +104,6 @@ pub struct TaskInner {
     /// when the task exits.
     is_init: bool,
 
-    #[cfg(not(feature = "future"))]
-    /// The entry point of the task
-    ///
-    /// For Unikernel, it is the entry point of the spawned task
-    ///
-    /// For Monolithic Kernel, it points to the function that
-    /// will return to the user mode.
-    entry: Option<*mut dyn FnOnce()>,
-
     #[cfg(feature = "preempt")]
     /// Whether the task needs to be rescheduled
     ///
@@ -151,57 +119,15 @@ pub struct TaskInner {
     /// Only when the count is zero, the task can be preempted.
     preempt_disable_count: AtomicUsize,
 
-    #[cfg(feature = "tls")]
-    tls: TlsArea,
 
     exit_code: AtomicI32,
-
-    /// The kernel stack of the task
-    #[cfg(not(feature = "future"))]
-    kstack: Option<TaskStack>,
-    #[cfg(feature = "future")]
-    kstack: UnsafeCell<Option<TaskStack>>,
-
-    /// The context of the task
-    ctx: UnsafeCell<TaskContext>,
-
-    #[cfg(feature = "monolithic")]
-    process_id: AtomicU64,
-
-    #[cfg(feature = "monolithic")]
-    /// 是否是所属进程下的主线程
-    is_leader: AtomicBool,
-
-    // #[cfg(feature = "monolithic")]
-    // /// 初始化的trap上下文
-    // pub trap_frame: UnsafeCell<TrapFrame>,
-    #[cfg(feature = "monolithic")]
-    /// the page table token of the process which the task belongs to
-    pub page_table_token: UnsafeCell<usize>,
-
-    #[cfg(feature = "monolithic")]
-    set_child_tid: AtomicU64,
-
-    #[cfg(feature = "monolithic")]
-    clear_child_tid: AtomicU64,
 
     /// 时间统计, 无论是否为宏内核架构都可能被使用到
     #[allow(unused)]
     time: UnsafeCell<TimeStat>,
 
-    #[cfg(feature = "monolithic")]
-    /// TODO: to support the sched_setaffinity
-    ///
-    /// TODO: move to the upper layer
-    pub cpu_set: AtomicU64,
+    fut: UnsafeCell<Pin<Box<dyn Future<Output = i32> + Send + 'static>>>
 
-    #[cfg(feature = "monolithic")]
-    /// The scheduler status of the task, which defines the scheduling policy and priority
-    pub sched_status: UnsafeCell<SchedStatus>,
-
-    #[cfg(feature = "monolithic")]
-    /// Whether the task is a thread which is vforked by another task
-    pub is_vforked_child: AtomicBool,
 }
 
 unsafe impl Send for TaskInner {}
@@ -230,114 +156,6 @@ impl TaskInner {
         alloc::format!("Task({}, {:?})", self.id.as_u64(), self.name())
     }
 
-    /// 获取内核栈栈顶
-    #[inline]
-    pub fn get_kernel_stack_top(&self) -> Option<usize> {
-        #[cfg(not(feature = "future"))]
-        if let Some(kstack) = &self.kstack {
-            return Some(kstack.top().as_usize());
-        }
-        #[cfg(feature = "future")]
-        if let Some(kstack) = unsafe { self.kstack.get().as_ref().unwrap() } {
-            return Some(kstack.top().as_usize());
-        }
-        None
-    }
-
-    #[inline]
-    pub fn get_kernel_stack_down(&self) -> Option<usize> {
-        #[cfg(not(feature = "future"))]
-        if let Some(kstack) = &self.kstack {
-            return Some(kstack.down().as_usize());
-        }
-        #[cfg(feature = "future")]
-        if let Some(kstack) = unsafe { self.kstack.get().as_ref().unwrap() } {
-            return Some(kstack.down().as_usize());
-        }
-        None
-    }
-
-    #[cfg(not(feature = "future"))]
-    #[cfg(feature = "monolithic")]
-    /// Create a new task with the given entry function and stack size.
-    pub fn new<F>(
-        entry: F,
-        name: String,
-        stack_size: usize,
-        process_id: u64,
-        page_table_token: usize,
-        #[cfg(feature = "tls")] tls_area: (usize, usize),
-    ) -> TaskInner
-    where
-        F: FnOnce() + Send + 'static,
-    {
-        let mut t = Self::new_common(
-            TaskId::new(),
-            name,
-            #[cfg(feature = "tls")]
-            tls_area,
-        );
-
-        log::debug!("new task: {}", t.id_name());
-        let kstack = TaskStack::alloc(align_up_4k(stack_size));
-
-        t.entry = Some(Box::into_raw(Box::new(entry)));
-
-        t.process_id.store(process_id, Ordering::Release);
-
-        t.page_table_token = UnsafeCell::new(page_table_token);
-
-        t.kstack = Some(kstack);
-        if unsafe { &*t.name.get() }.as_str() == "idle" {
-            // FIXME: name 现已被用作 prctl 使用的程序名，应另选方式判断 idle 进程
-            t.is_idle = true;
-        }
-        t
-    }
-
-    #[cfg(not(feature = "future"))]
-    #[cfg(not(feature = "monolithic"))]
-    /// Create a new task with the given entry function and stack size.
-    pub fn new<F>(
-        entry: F,
-        name: String,
-        stack_size: usize,
-        #[cfg(feature = "tls")] tls_area: (usize, usize),
-    ) -> TaskInner
-    where
-        F: FnOnce() + Send + 'static,
-    {
-        let mut t = Self::new_common(
-            TaskId::new(),
-            name,
-            #[cfg(feature = "tls")]
-            tls_area,
-        );
-        log::debug!("new task: {}", t.id_name());
-        let kstack = TaskStack::alloc(align_up_4k(stack_size));
-
-        t.entry = Some(Box::into_raw(Box::new(entry)));
-
-        t.kstack = Some(kstack);
-        if unsafe { &*t.name.get() }.as_str() == "idle" {
-            // FIXME: name 现已被用作 prctl 使用的程序名，应另选方式判断 idle 进程
-            t.is_idle = true;
-        }
-        t
-    }
-
-    /// To init the task context
-    ///
-    /// # Arguments
-    ///
-    /// * `entry` - the entry point of the task
-    ///
-    /// * `kstack_top` - the top of the kernel stack
-    ///
-    /// * `tls` - the address of the thread local storage
-    pub fn init_task_ctx(&mut self, entry: usize, kstack_top: VirtAddr, tls: VirtAddr) {
-        self.ctx.get_mut().init(entry, kstack_top, tls);
-    }
 }
 
 /// Methods for time statistics
@@ -420,205 +238,42 @@ impl TaskInner {
     }
 }
 
-#[cfg(feature = "monolithic")]
-impl TaskInner {
-    /// store the child thread ID at the location pointed to by child_tid in clone args
-    pub fn set_child_tid(&self, tid: usize) {
-        self.set_child_tid.store(tid as u64, Ordering::Release)
-    }
-
-    /// clear (zero) the child thread ID at the location pointed to by child_tid in clone args
-    pub fn set_clear_child_tid(&self, tid: usize) {
-        self.clear_child_tid.store(tid as u64, Ordering::Release)
-    }
-
-    /// get the pointer to the child thread ID
-    pub fn get_clear_child_tid(&self) -> usize {
-        self.clear_child_tid.load(Ordering::Acquire) as usize
-    }
-
-    #[inline]
-    /// get the page table token of the process which the task belongs to
-    pub fn get_page_table_token(&self) -> usize {
-        unsafe { *self.page_table_token.get() }
-    }
-
-    #[inline]
-    /// force to set the page table token of the process UNSAFELY
-    pub fn set_page_table_token(&self, token: usize) {
-        unsafe {
-            *self.page_table_token.get() = token;
-        }
-    }
-
-    #[inline]
-    /// get the process ID of the task
-    pub fn get_process_id(&self) -> u64 {
-        self.process_id.load(Ordering::Acquire)
-    }
-
-    #[inline]
-    /// set the process ID of the task
-    pub fn set_process_id(&self, process_id: u64) {
-        self.process_id.store(process_id, Ordering::Release);
-    }
-
-    // /// 获取内核栈的第一个trap上下文
-    // #[inline]
-    // pub fn get_first_trap_frame(&self) -> *mut TrapFrame {
-    //     if let Some(kstack) = &self.kstack {
-    //         return kstack.get_first_trap_frame();
-    //     }
-    //     unreachable!("get_first_trap_frame: kstack is None");
-    // }
-
-    /// set the flag whether the task is the main thread of the process
-    pub fn set_leader(&self, is_lead: bool) {
-        self.is_leader.store(is_lead, Ordering::Release);
-    }
-
-    /// whether the task is the main thread of the process
-    pub fn is_leader(&self) -> bool {
-        self.is_leader.load(Ordering::Acquire)
-    }
-
-    /// 设置CPU set，其中set_size为bytes长度
-    pub fn set_cpu_set(&self, mask: usize, set_size: usize, max_cpu_num: usize) {
-        let len = if set_size * 4 > max_cpu_num {
-            max_cpu_num
-        } else {
-            set_size * 4
-        };
-        let now_mask = mask & 1 << ((len) - 1);
-        self.cpu_set.store(now_mask as u64, Ordering::Release)
-    }
-
-    /// to get the CPU set
-    pub fn get_cpu_set(&self) -> usize {
-        self.cpu_set.load(Ordering::Acquire) as usize
-    }
-
-    /// set the scheduling policy and priority
-    pub fn set_sched_status(&self, status: SchedStatus) {
-        let prev_status = self.sched_status.get();
-        unsafe {
-            *prev_status = status;
-        }
-    }
-
-    /// get the scheduling policy and priority
-    pub fn get_sched_status(&self) -> SchedStatus {
-        let status = self.sched_status.get();
-        unsafe { *status }
-    }
-
-
-    #[cfg(target_arch = "x86_64")]
-    /// # Safety
-    /// It is unsafe because it may cause undefined behavior if the `fs_base` is not a valid address.
-    pub unsafe fn set_tls_force(&self, value: usize) {
-        self.ctx.get().as_mut().unwrap().fs_base = value;
-    }
-
-    /// To set whether the task will be blocked by a vfork child
-    #[inline]
-    pub fn set_vfork_child(&self, is_vfork_child: bool) {
-        self.is_vforked_child
-            .store(is_vfork_child, Ordering::Release);
-    }
-
-    /// 获取父进程blocked_by_vfork布尔值
-    pub fn is_vfork_child(&self) -> bool {
-        self.is_vforked_child.load(Ordering::Acquire)
-    }
-}
 
 impl TaskInner {
-    fn new_common(
-        id: TaskId,
+    pub fn new(
         name: String,
-        #[cfg(feature = "tls")] tls_area: (usize, usize),
+        fut: Pin<Box<dyn Future<Output = i32> + Send + 'static>>,
     ) -> Self {
-        Self {
-            id,
+        let mut t = Self {
+            id: TaskId::new(),
             name: UnsafeCell::new(name),
             is_idle: false,
             is_init: false,
-            #[cfg(not(feature = "future"))]
-            entry: None,
             #[cfg(feature = "preempt")]
             need_resched: AtomicBool::new(false),
             #[cfg(feature = "preempt")]
             preempt_disable_count: AtomicUsize::new(0),
             exit_code: AtomicI32::new(0),
-            #[cfg(not(feature = "future"))]
-            kstack: None,
-            #[cfg(feature = "future")]
-            kstack: UnsafeCell::new(None),
-            ctx: UnsafeCell::new(TaskContext::new()),
-            #[cfg(feature = "tls")]
-            tls: TlsArea::alloc(tls_area.0, tls_area.1),
-
             time: UnsafeCell::new(TimeStat::new()),
-
-            #[cfg(feature = "monolithic")]
-            process_id: AtomicU64::new(0),
-
-            #[cfg(feature = "monolithic")]
-            is_leader: AtomicBool::new(false),
-
-            #[cfg(feature = "monolithic")]
-            page_table_token: UnsafeCell::new(0),
-
-            #[cfg(feature = "monolithic")]
-            set_child_tid: AtomicU64::new(0),
-
-            #[cfg(feature = "monolithic")]
-            clear_child_tid: AtomicU64::new(0),
-
-            #[cfg(feature = "monolithic")]
-            // 一开始默认都可以运行在每个CPU上
-            cpu_set: AtomicU64::new(0),
-
-            #[cfg(feature = "monolithic")]
-            sched_status: UnsafeCell::new(SchedStatus {
-                policy: SchedPolicy::SCHED_FIFO,
-                priority: 1,
-            }),
-            
-            #[cfg(feature = "monolithic")]
-            is_vforked_child: AtomicBool::new(false),
-        }
-    }
-
-    /// Creates an "init task" using the current CPU states, to use as the
-    /// current task.
-    ///
-    /// As it is the current task, no other task can switch to it until it
-    /// switches out.
-    ///
-    /// And there is no need to set the `entry`, `kstack` or `tls` fields, as
-    /// they will be filled automatically when the task is switches out.
-    pub fn new_init(name: String, #[cfg(feature = "tls")] tls_area: (usize, usize)) -> TaskInner {
-        let mut t = Self::new_common(
-            TaskId::new(),
-            name,
-            #[cfg(feature = "tls")]
-            tls_area,
-        );
-        t.is_init = true;
+            fut: UnsafeCell::new(fut),
+        };
         if unsafe { &*t.name.get() }.as_str() == "idle" {
-            // FIXME: name 现已被用作 prctl 使用的程序名，应另选方式判断 idle 进程
             t.is_idle = true;
         }
-        #[cfg(not(feature = "future"))]
-        { t.kstack = Some(TaskStack::new_init()); }
-        #[cfg(feature = "future")]
-        unsafe { 
-            t.kstack.get().write(Some(TaskStack::new_init()));
-            t.set_ctx_type(crate::ContextType::THREAD);
-        }
         t
+    }
+
+    pub fn new_init(
+        name: String,
+        fut: Pin<Box<dyn Future<Output = i32> + Send + 'static>>,
+    ) -> Self {
+        let mut t = Self::new(name, fut);
+        t.is_init = true;
+        t
+    }
+
+    pub fn get_future(&self) -> &mut Pin<Box<dyn Future<Output = i32> + Send + 'static>> {
+        unsafe { self.fut.get().as_mut().unwrap() }
     }
 
     /// Whether the task has been inited
@@ -631,18 +286,6 @@ impl TaskInner {
     #[inline]
     pub const fn is_idle(&self) -> bool {
         self.is_idle
-    }
-
-    /// get the task context for task switch
-    #[inline]
-    pub fn get_ctx(&self) -> &TaskContext {
-        unsafe { self.ctx.get().as_ref().unwrap() }
-    }
-
-    /// return ctx unwind
-    #[inline]
-    pub fn ctx_unwind(&self) -> (usize, usize) {
-        (self.get_ctx().thread_saved_pc(), self.get_ctx().thread_saved_fp())
     }
 
     /// Set the task waiting for reschedule
@@ -689,16 +332,6 @@ impl TaskInner {
         self.preempt_disable_count.load(Ordering::Acquire)
     }
 
-    /// Get the task context pointer
-    ///
-    /// # Safety
-    ///
-    /// The task context pointer is mutable, but it will be accessed by only one task at a time
-    #[inline]
-    pub const unsafe fn ctx_mut_ptr(&self) -> *mut TaskContext {
-        self.ctx.get()
-    }
-
     /// Get the exit code
     #[inline]
     pub fn get_exit_code(&self) -> i32 {
@@ -709,20 +342,6 @@ impl TaskInner {
     #[inline]
     pub fn set_exit_code(&self, code: i32) {
         self.exit_code.store(code, Ordering::Release)
-    }
-
-    #[cfg(not(feature = "future"))]
-    /// Get the task entry
-    #[inline]
-    pub fn get_entry(&self) -> Option<*mut dyn FnOnce()> {
-        self.entry
-    }
-
-    /// Get the task tls pointer
-    #[cfg(feature = "tls")]
-    #[inline]
-    pub fn get_tls_ptr(&self) -> usize {
-        self.tls.tls_ptr() as usize
     }
 
     /// Reset the task time statistics
@@ -754,117 +373,5 @@ impl fmt::Debug for TaskInner {
 impl Drop for TaskInner {
     fn drop(&mut self) {
         log::debug!("task drop: {}", self.id_name());
-    }
-}
-
-#[cfg(feature = "future")]
-impl TaskInner {
-    pub fn new<F, T>(
-        fut: F,
-        name: String,
-        _stack_size: usize,
-        #[cfg(feature = "monolithic")] process_id: u64,
-        #[cfg(feature = "monolithic")] page_table_token: usize,
-        #[cfg(feature = "tls")] tls_area: (usize, usize),
-    ) -> TaskInner
-    where
-        F: FnOnce() -> T,
-        T: Future<Output = i32> + 'static + Send,
-    {
-        let mut t = Self::new_common(
-            TaskId::new(),
-            name,
-            #[cfg(feature = "tls")]
-            tls_area,
-        );
-        log::debug!("new task: {}", t.id_name());
-        t.ctx.get_mut().init_future(fut);
-
-        #[cfg(feature = "monolithic")]
-        {
-            t.process_id.store(process_id, Ordering::Release);
-            t.page_table_token = UnsafeCell::new(page_table_token);
-        }        
-
-        if unsafe { &*t.name.get() }.as_str() == "idle" {
-            // FIXME: name 现已被用作 prctl 使用的程序名，应另选方式判断 idle 进程
-            t.is_idle = true;
-        }
-        t
-    }
-
-    /// Set occupied stack
-    pub fn set_occupied_stack(&self, stack: TaskStack, #[cfg(feature = "monolithic")] trap_frame_size: usize) {
-        let stack_top = stack.top().as_usize();
-        let kstack = unsafe { self.kstack.get().as_mut().unwrap() };
-        assert!(kstack.is_none(), "{} is already occupied", self.id_name());
-        kstack.replace(stack);
-        unsafe { self.ctx.get().as_mut().unwrap().set_kstack_top(
-            #[cfg(not(feature = "monolithic"))] stack_top.into(),
-            #[cfg(feature = "monolithic")] (stack_top - trap_frame_size).into()
-        ) };
-    }
-
-    /// Pick occupied stack
-    pub fn pick_occupied_stack(&self) -> TaskStack {
-        let kstack = unsafe { self.kstack.get().as_mut().unwrap() };
-        assert!(kstack.is_some());
-        kstack.take().unwrap()
-    }
-
-    /// Set the context type
-    pub fn set_ctx_type(&self, ctx_type: crate::ContextType) {
-        unsafe { self.ctx.get().as_mut().unwrap().set_ctx_type(ctx_type) };
-    }
-
-    /// Get the task context type
-    pub fn get_ctx_type(&self) -> crate::ContextType {
-        unsafe { self.ctx.get().as_ref().unwrap().ctx_type }
-    }
-
-    /// Check whether the task has occupied a stack
-    pub fn check_stack(&self) -> bool {
-        unsafe { self.kstack.get().as_ref().unwrap() }.is_some()
-    }
-
-    #[cfg(feature = "monolithic")]
-    /// Init user task's kstack
-    pub fn init_user_kstack(&self, stack_size: usize, trap_frame_size: usize) {
-        let kstack = TaskStack::alloc(memory_addr::align_up_4k(stack_size));
-        self.set_occupied_stack(kstack, trap_frame_size);
-    }
-
-    pub fn new_future(
-        fut: Pin<Box<dyn Future<Output = i32> + 'static + Send>>,
-        name: String,
-        _stack_size: usize,
-        #[cfg(feature = "monolithic")] process_id: u64,
-        #[cfg(feature = "monolithic")] page_table_token: usize,
-        #[cfg(feature = "tls")] tls_area: (usize, usize),
-    ) -> TaskInner {
-        let mut t = Self::new_common(
-            TaskId::new(),
-            name,
-            #[cfg(feature = "tls")]
-            tls_area,
-        );
-        log::debug!("new task: {}", t.id_name());
-        t.ctx.get_mut().init_box_future(fut);
-
-        #[cfg(feature = "monolithic")]
-        {
-            t.process_id.store(process_id, Ordering::Release);
-            t.page_table_token = UnsafeCell::new(page_table_token);
-        }        
-
-        if unsafe { &*t.name.get() }.as_str() == "idle" {
-            // FIXME: name 现已被用作 prctl 使用的程序名，应另选方式判断 idle 进程
-            t.is_idle = true;
-        }
-        if unsafe { &*t.name.get() }.as_str() == "main" {
-            // FIXME: name 现已被用作 prctl 使用的程序名，应另选方式判断 idle 进程
-            t.is_init = true;
-        }
-        t
     }
 }
