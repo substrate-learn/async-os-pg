@@ -4,39 +4,6 @@ use crate::wait_list::WaitTaskList;
 use crate::wait_list::WaitWakerNode;
 use alloc::sync::Arc;
 
-/// A queue to store sleeping tasks.
-///
-/// # Examples
-///
-/// ```
-/// use axtask::WaitQueue;
-/// use core::sync::atomic::{AtomicU32, Ordering};
-///
-/// static VALUE: AtomicU32 = AtomicU32::new(0);
-/// static WQ: WaitQueue = WaitQueue::new();
-///
-/// axtask::init_scheduler();
-/// // spawn a new task that updates `VALUE` and notifies the main task
-/// axtask::spawn(|| {
-///     assert_eq!(VALUE.load(Ordering::Relaxed), 0);
-///     VALUE.fetch_add(1, Ordering::Relaxed);
-///     WQ.notify_one(true); // wake up the main task
-/// });
-///
-/// WQ.wait(); // block until `notify()` is called
-/// assert_eq!(VALUE.load(Ordering::Relaxed), 1);
-/// ```
-///
-
-#[macro_export]
-macro_rules! declare_wait {
-    ($name: ident) => {
-        let $name = Arc::new(WaitWakerNode::new($crate::waker::waker_from_task(
-            $crate::current().as_task_ref()
-        )));
-    };
-}
-
 pub struct WaitQueue {
     // Support queue lock by external caller,use SpinNoIrq
     // Arceos SpinNoirq current implementation implies irq_save,

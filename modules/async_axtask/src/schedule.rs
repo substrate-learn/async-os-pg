@@ -19,11 +19,11 @@ pub async fn schedule_timeout(deadline: axhal::time::TimeValue) -> bool {
     core::future::poll_fn(|cx| {
         if !flag {
             flag = true;
-            crate::timers::set_alarm_wakeup(deadline, cx.waker().clone());
+            axsync::set_alarm_wakeup(deadline, cx.waker().clone());
             core::task::Poll::Pending
         } else {
             // may wake up by others, cancel the alarm
-            crate::timers::cancel_alarm(cx.waker());
+            axsync::cancel_alarm(cx.waker());
             // return whether the deadline has passed
             core::task::Poll::Ready(axhal::time::current_time() >= deadline)
         }

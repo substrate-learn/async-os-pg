@@ -1,0 +1,22 @@
+[package]
+name = "async_axsync"
+version = "0.1.0"
+edition = "2021"
+authors = ["Yuekai Jia <equation618@gmail.com>"]
+description = "ArceOS synchronization primitives"
+license = "GPL-3.0-or-later OR Apache-2.0"
+homepage = "https://github.com/rcore-os/arceos"
+repository = "https://github.com/rcore-os/arceos/tree/main/modules/axsync"
+documentation = "https://rcore-os.github.io/arceos/axsync/index.html"
+keywords = ["Starry"]
+
+[features]
+irq = []
+
+[dependencies]
+spinlock = { git = "https://github.com/Starry-OS/spinlock.git" }
+linked_list = { git = "https://github.com/Starry-OS/linked_list.git" }
+lazy_init = { git = "https://github.com/Starry-OS/lazy_init.git" }
+timer_list = { git = "https://github.com/Starry-OS/timer_list.git" }
+axhal = { path = "../async_axhal", package = "async_axhal" }
+taskctx = { path = "../async_taskctx", package = "async_taskctx" }

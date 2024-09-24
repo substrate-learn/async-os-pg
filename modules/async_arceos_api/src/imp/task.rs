@@ -29,17 +29,17 @@ cfg_task! {
     ///
     /// A wait queue is used to store sleeping tasks waiting for a certain event
     /// to happen.
-    pub struct AxWaitQueueHandle(axtask::WaitQueue);
+    pub struct AxWaitQueueHandle(axsync::WaitQueue);
 
     impl AxWaitQueueHandle {
         /// Creates a new empty wait queue.
         pub const fn new() -> Self {
-            Self(axtask::WaitQueue::new())
+            Self(axsync::WaitQueue::new())
         }
     }
 
     impl Deref for AxWaitQueueHandle {
-        type Target = axtask::WaitQueue;
+        type Target = axsync::WaitQueue;
         fn deref(&self) -> &Self::Target { 
             &self.0
         }

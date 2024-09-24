@@ -27,15 +27,16 @@ pub fn current() -> CurrentTask {
     CurrentTask::get()
 }
 
-pub fn clear_current() {
-    CurrentTask::clean_current();
+#[no_mangle]
+pub extern "C" fn current_task_id() -> u64 {
+    CurrentTask::get().id().as_u64()
 }
 
 /// Initializes the task scheduler (for the primary CPU).
 pub fn init_scheduler() {
     info!("Initialize scheduling...");
     crate::init();
-    crate::timers::init();
+    axsync::init();
     info!("  use {} scheduler.", Scheduler::scheduler_name());
 }
 
@@ -55,7 +56,7 @@ pub fn exit(_exit_code: i32) -> ! {
 ///
 /// For example, advance scheduler states, checks timed events, etc.
 pub fn on_timer_tick() {
-    crate::timers::check_events();
+    axsync::check_events();
     crate::schedule::scheduler_timer_tick();
 }
 
@@ -148,10 +149,10 @@ impl Future for SleepFuture {
         let deadline = self.deadline;
         if !self.has_sleep {
             self.get_mut().has_sleep = true;
-            crate::timers::set_alarm_wakeup(deadline, cx.waker().clone());
+            axsync::set_alarm_wakeup(deadline, cx.waker().clone());
             Poll::Pending
         } else {
-            crate::timers::cancel_alarm(cx.waker());
+            axsync::cancel_alarm(cx.waker());
             Poll::Ready(axhal::time::current_time() >= self.deadline)
         }
     }

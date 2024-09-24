@@ -10,6 +10,8 @@ use alloc::{
 use scheduler::BaseScheduler;
 use lazy_init::LazyInit;
 
+// use axmem::MemorySet;
+
 pub(crate) static KERNEL_EXECUTOR: LazyInit<Arc<Executor>> = LazyInit::new();
 
 // id -> Executor(Process)
@@ -18,6 +20,10 @@ pub(super) static EXECUTORS: SpinNoIrqOnly<BTreeMap<u64, Arc<Executor>>> = SpinN
 pub struct Executor {
     /// Executor SCHEDULER
     scheduler: SpinNoIrq<Scheduler>,
+
+    // #[cfg(feature = "monolithic")]
+    // pub memory_set: 
+
 }
 
 

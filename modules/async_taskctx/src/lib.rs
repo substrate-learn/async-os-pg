@@ -19,29 +19,3 @@ pub use kstack::*;
 mod current;
 pub use current::*;
 
-/// Disables kernel preemption.
-///
-/// It will increase the preemption disable counter of the current task.
-#[cfg(feature = "preempt")]
-pub fn disable_preempt() {
-    let ptr: *const TaskInner = current_task_ptr();
-    if !ptr.is_null() {
-        unsafe {
-            (*ptr).disable_preempt();
-        }
-    }
-}
-
-/// Enables kernel preemption.
-///
-/// It will decrease the preemption disable counter of the current task.Once the counter is zero, the
-/// task can be preempted.
-#[cfg(feature = "preempt")]
-pub fn enable_preempt() {
-    let ptr: *const TaskInner = current_task_ptr();
-    if !ptr.is_null() {
-        unsafe {
-            (*ptr).enable_preempt();
-        }
-    }
-}
