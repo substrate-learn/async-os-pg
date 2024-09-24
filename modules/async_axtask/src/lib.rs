@@ -22,7 +22,6 @@ mod timers;
 pub use api::*;
 pub use wait_queue::*;
 pub use wait_list::*;
-pub use schedule::schedule;
 
 /// The reference type of a task.
 pub type AxTaskRef = alloc::sync::Arc<AxTask>;

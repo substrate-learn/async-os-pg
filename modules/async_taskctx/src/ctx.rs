@@ -41,9 +41,7 @@ impl Context {
     /// Initializes the context for a new task, with the given entry point and
     /// kernel stack.
     pub fn init(&mut self, entry: usize, kstack_top: VirtAddr, tls_area: VirtAddr) {
-        self.thread_ctx.sp = kstack_top.as_usize();
-        self.thread_ctx.ra = entry;
-        self.thread_ctx.tp = tls_area.as_usize();
+        self.thread_ctx.init(entry, kstack_top, tls_area);
     }
     
     /// Initializes the context for a new task, with the given future.
@@ -71,11 +69,11 @@ impl Context {
     }
 
     pub fn thread_saved_fp(&self) -> usize {
-        self.thread_ctx.s0 as usize
+        self.thread_ctx.thread_saved_fp()
     }
 
     pub fn thread_saved_pc(&self) -> usize {
-        self.thread_ctx.ra as usize
+        self.thread_ctx.thread_saved_pc()
     }
 }
 

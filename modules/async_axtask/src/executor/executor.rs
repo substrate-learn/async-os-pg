@@ -124,6 +124,7 @@ impl CurrentExecutor {
         self.0.deref().clone()
     }
 
+    #[allow(unused)]
     pub(crate) fn ptr_eq(&self, other: &Arc<Executor>) -> bool {
         Arc::ptr_eq(&self.0, other)
     }
@@ -133,6 +134,7 @@ impl CurrentExecutor {
         super::current::set_current_executor_ptr(ptr);
     }
 
+    #[allow(unused)]
     pub(crate) unsafe fn set_current(prev: Self, next: Arc<Executor>) {
         let Self(arc) = prev;
         ManuallyDrop::into_inner(arc); // `call Arc::drop()` to decrease prev task reference count.

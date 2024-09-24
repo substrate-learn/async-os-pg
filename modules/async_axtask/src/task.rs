@@ -147,6 +147,7 @@ impl CurrentTask {
         &self.0
     }
 
+    #[allow(unused)]
     pub(crate) fn clone(&self) -> AxTaskRef {
         self.0.deref().clone()
     }

@@ -1,4 +1,4 @@
-use core::{future::Future, task::{Context, Poll, Waker}};
+use core::{future::Future, task::{Poll, Waker}};
 
 use crate::{executor::{CurrentExecutor, Executor}, task::{new_task, CurrentTask, TaskState}, AxTaskRef, Scheduler};
 use alloc::{string::String, boxed::Box};
@@ -49,12 +49,35 @@ pub fn exit(_exit_code: i32) -> ! {
     axhal::misc::terminate();
 }
 
+#[cfg(feature = "irq")]
+#[doc(cfg(feature = "irq"))]
 /// Handles periodic timer ticks for the task manager.
 ///
 /// For example, advance scheduler states, checks timed events, etc.
 pub fn on_timer_tick() {
     crate::timers::check_events();
     crate::schedule::scheduler_timer_tick();
+}
+
+#[cfg(feature = "preempt")]
+/// Checks if the current task should be preempted.
+/// This api called after handle irq,it may be on a
+/// disable_preempt ctx
+pub fn current_check_preempt_pending() {
+    log::error!("current_check_preempt_pending");
+    if let Some(curr) = current_may_uninit() {
+        // if task is already exited or blocking,
+        // no need preempt, they are rescheduling
+        if curr.get_preempt_pending() && curr.can_preempt() && !curr.is_exited() && !curr.is_blocking()
+        {
+            debug!(
+                "current {} is to be preempted , allow {}",
+                curr.id_name(),
+                curr.can_preempt()
+            );
+            crate::schedule::preempt_schedule()
+        }
+    }
 }
 
 

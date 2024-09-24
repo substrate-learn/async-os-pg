@@ -9,55 +9,6 @@ use axhal::arch::TrapFrame;
 /// 并且通过专门的接口即可，不需要在这里单独定义这个关系
 /// 这里的实现实际上是 future 任务之间的关系，这些任务也可以通过 join 等接口来实现
 
-// /// A map to store tasks' wait queues, which stores tasks that are waiting for this task to exit.
-// pub(crate) static WAIT_FOR_TASK_EXITS: SpinNoIrq<BTreeMap<u64, Arc<WaitQueue>>> =
-//     SpinNoIrq::new(BTreeMap::new());
-
-// pub(crate) fn add_wait_for_exit_queue(task: &AxTaskRef) {
-//     WAIT_FOR_TASK_EXITS
-//         .lock()
-//         .insert(task.id().as_u64(), Arc::new(WaitQueue::new()));
-// }
-
-// pub(crate) fn get_wait_for_exit_queue(task: &AxTaskRef) -> Option<Arc<WaitQueue>> {
-//     WAIT_FOR_TASK_EXITS.lock().get(&task.id().as_u64()).cloned()
-// }
-
-// /// When the task exits, notify all tasks that are waiting for this task to exit, and
-// /// then remove the wait queue of the exited task.
-// pub(crate) fn notify_wait_for_exit(task: &AxTaskRef) {
-//     if let Some(wait_queue) = WAIT_FOR_TASK_EXITS.lock().remove(&task.id().as_u64()) {
-//         wait_queue.notify_all();
-//     }
-// }
-
-// pub(crate) fn exit_current(exit_code: i32) -> ! {
-//     let curr = crate::current();
-//     debug!("task exit: {}, exit_code={}", curr.id_name(), exit_code);
-//     curr.set_state(TaskState::Exited);
-//     // maybe others join on this thread
-//     // must set state before notify wait_exit
-//     notify_wait_for_exit(curr.as_task_ref());
-//     current_executor().kick_exited_task(curr.as_task_ref());
-//     if curr.is_init() {
-//         Executor::clean_all();
-//         axhal::misc::terminate();
-//     } else {
-//         curr.set_exit_code(exit_code);
-//         schedule();
-//     }
-//     unreachable!("exit_current");
-// }
-
-// pub(crate) fn yield_current() {
-//     let curr = crate::current();
-//     assert!(curr.is_runable());
-//     trace!("task yield: {}", curr.id_name());
-//     #[cfg(feature = "future")]
-//     curr.set_ctx_type(taskctx::ContextType::THREAD);
-//     schedule();
-// }
-
 pub async fn schedule_timeout(deadline: axhal::time::TimeValue) -> bool {
     let curr = crate::current();
     debug!("task sleep: {}, deadline={:?}", curr.id_name(), deadline);
@@ -79,7 +30,7 @@ pub async fn schedule_timeout(deadline: axhal::time::TimeValue) -> bool {
     }).await
 }
 
-// #[cfg(feature = "irq")]
+#[cfg(feature = "irq")]
 pub fn scheduler_timer_tick() {
     if let Some(curr) = crate::current_may_uninit() {
         if !curr.is_idle() && current_executor().task_tick(curr.as_task_ref()) {
@@ -98,6 +49,16 @@ pub fn wakeup_task(task: AxTaskRef) {
     task.get_executor().put_prev_task(task, false);
 }
 
-pub fn schedule() {
-    unimplemented!()
+// #[cfg(feature = "preempt")]
+pub fn preempt_schedule() {
+    // let curr = current();
+    // let waker = crate::waker::waker_from_task(curr.as_task_ref());
+    // // save context
+    // unsafe {
+    //     let ctx = &mut *curr.ctx_mut_ptr();
+    //     // taskctx::switch(prev_ctx, next_ctx, f);
+    // }
+    // waker.wake();
+
+    // unimplemented!()
 }
