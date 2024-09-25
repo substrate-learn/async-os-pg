@@ -33,6 +33,9 @@ pub struct ScheduleTask {
     preempt_ctx: SpinNoIrq<Option<PreemptCtx>>,
 }
 
+/// 抢占如果可以达到这种效果：
+///   高优先级的任务，可以优于中断的处理，在特定的场景下能够达到更好的实时性
+
 #[cfg(feature = "preempt")]
 pub struct PreemptCtx {
     kstack: TaskStack,

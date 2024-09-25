@@ -30,7 +30,6 @@ axconfig = { git = "https://github.com/Starry-OS/axconfig.git" }
 axlog = { git = "https://github.com/Starry-OS/axlog.git" }
 axerrno = { git = "https://github.com/Starry-OS/axerrno.git" }
 axalloc = { git = "https://github.com/Starry-OS/axalloc.git", optional = true }
-axfs = { git = "https://github.com/Starry-OS/axfs.git", optional = true }
 axnet = { git = "https://github.com/Starry-OS/axnet.git", optional = true }
 axdisplay = { git = "https://github.com/Starry-OS/axdisplay.git", optional = true }
 
@@ -40,3 +39,4 @@ axtask = { path = "../async_axtask", package = "async_axtask" }
 axio = { path = "../async_axio", package = "async_axio" }
 axhal = { path = "../async_axhal", package = "async_axhal" }
 axsync = { path = "../async_axsync", package = "async_axsync" }
+axfs = { path = "../async_axfs", package = "async_axfs", optional = true }

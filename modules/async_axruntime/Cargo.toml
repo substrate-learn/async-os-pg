@@ -31,10 +31,8 @@ axlog = { git = "https://github.com/Starry-OS/axlog.git" }
 axconfig = { git = "https://github.com/Starry-OS/axconfig.git" }
 axalloc = { git = "https://github.com/Starry-OS/axalloc.git", optional = true }
 axdriver = { git = "https://github.com/Starry-OS/axdriver.git", optional = true }
-axfs = { git = "https://github.com/Starry-OS/axfs.git", optional = true }
 axnet = { git = "https://github.com/Starry-OS/axnet.git", optional = true }
 axdisplay = { git = "https://github.com/Starry-OS/axdisplay.git", optional = true }
-axmem = { git = "https://github.com/Starry-OS/axmem.git", optional = true }
 crate_interface = { git = "https://github.com/Starry-OS/crate_interface.git" }
 percpu = { git = "https://github.com/Starry-OS/percpu.git", optional = true }
 kernel_guard = { git = "https://github.com/Starry-OS/kernel_guard.git", optional = true }
@@ -42,3 +40,5 @@ lazy_init = { git = "https://github.com/Starry-OS/lazy_init.git", optional = tru
 
 axtask = { path = "../async_axtask", package = "async_axtask" }
 axhal = { path = "../async_axhal", package = "async_axhal" }
+axfs = { path = "../async_axfs", package = "async_axfs", optional = true }
+axmem = { path = "../async_axmem", package = "async_axmem", optional = true }

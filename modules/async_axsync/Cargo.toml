@@ -19,4 +19,3 @@ linked_list = { git = "https://github.com/Starry-OS/linked_list.git" }
 lazy_init = { git = "https://github.com/Starry-OS/lazy_init.git" }
 timer_list = { git = "https://github.com/Starry-OS/timer_list.git" }
 axhal = { path = "../async_axhal", package = "async_axhal" }
-taskctx = { path = "../async_taskctx", package = "async_taskctx" }

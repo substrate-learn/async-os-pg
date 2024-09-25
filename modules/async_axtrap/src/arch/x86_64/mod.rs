@@ -71,7 +71,7 @@ fn x86_trap_handler(tf: &mut TrapFrame) {
                 tf.rip, tf.error_code, tf
             );
         }
-        IRQ_VECTOR_START..=IRQ_VECTOR_END => crate::trap::handle_irq(tf.vector as _, false),
+        IRQ_VECTOR_START..=IRQ_VECTOR_END => crate::trap::handle_irq(tf.vector as _, false, tf),
         _ => {
             panic!(
                 "Unhandled exception {} (error_code = {:#x}) @ {:#x}:\n{:#x?}",

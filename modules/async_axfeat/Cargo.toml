@@ -30,7 +30,7 @@ paging = ["alloc", "axhal/paging", "axruntime/paging"]
 tls = ["alloc", "axhal/tls", "axruntime/tls", "axtask?/tls"]
 
 # Multi-threading and scheduler
-multitask = ["alloc", "axtask/multitask", "axsync/multitask", "axruntime/multitask"]
+multitask = ["alloc", "axtask/multitask", "axsync", "axruntime/multitask"]
 sched_fifo = ["axtask/sched_fifo"]
 sched_rr = ["axtask/sched_rr", "irq"]
 sched_cfs = ["axtask/sched_cfs", "irq"]
@@ -65,16 +65,16 @@ log-level-debug = ["axlog/log-level-debug"]
 log-level-trace = ["axlog/log-level-trace"]
 
 [dependencies]
-axhal = { git = "https://github.com/Starry-OS/axhal.git" }
 axlog = { git = "https://github.com/Starry-OS/axlog.git" }
 axalloc = { git = "https://github.com/Starry-OS/axalloc.git", optional = true }
 axdriver = { git = "https://github.com/Starry-OS/axdriver.git", optional = true }
-axfs = { git = "https://github.com/Starry-OS/axfs.git", optional = true }
 axnet = { git = "https://github.com/Starry-OS/axnet.git", optional = true }
 axdisplay = { git = "https://github.com/Starry-OS/axdisplay.git", optional = true }
-axsync = { git = "https://github.com/Starry-OS/axsync.git", optional = true }
 spinlock = { git = "https://github.com/Starry-OS/spinlock.git", optional = true }
 
 axruntime = { path = "../async_axruntime", package = "async_axruntime", optional = true }
 axtask = { path = "../async_axtask", package = "async_axtask", optional = true }
 taskctx = { path = "../async_taskctx", package = "async_taskctx", optional = true }
+axhal = { path = "../async_axhal", package = "async_axhal" }
+axfs = { path = "../async_axfs", package = "async_axfs", optional = true }
+axsync = { path = "../async_axsync", package = "async_axsync", optional = true }

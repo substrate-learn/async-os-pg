@@ -10,7 +10,7 @@ use alloc::{
 use scheduler::BaseScheduler;
 use lazy_init::LazyInit;
 
-// use axmem::MemorySet;
+use axmem::MemorySet;
 
 pub(crate) static KERNEL_EXECUTOR: LazyInit<Arc<Executor>> = LazyInit::new();
 
@@ -22,7 +22,7 @@ pub struct Executor {
     scheduler: SpinNoIrq<Scheduler>,
 
     // #[cfg(feature = "monolithic")]
-    // pub memory_set: 
+    pub memory_set: MemorySet
 
 }
 
@@ -36,6 +36,7 @@ impl Executor {
         scheduler.init();
         Executor {
             scheduler: SpinNoIrq::new(scheduler),
+            memory_set: MemorySet::new_memory_set()
         }
     }
 
