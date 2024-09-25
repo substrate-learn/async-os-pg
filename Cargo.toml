@@ -11,7 +11,7 @@ lto = true
 [workspace]
 members = [
     "apps/helloworld", 
-    "modules/async_axstd", "modules/async_axtask", "modules/async_axruntime", "modules/async_arceos_api", "modules/async_taskctx", "modules/async_axfeat", "modules/async_axsync", "modules/async_arceos_posix_api", "modules/async_axtrap", "modules/async_axhal",
+    "modules/async_axstd", "modules/async_axtask", "modules/async_axruntime", "modules/async_arceos_api", "modules/async_taskctx", "modules/async_axfeat", "modules/async_axsync", "modules/async_axtrap", "modules/async_axhal",
     "crates/arch_boot",
-    "tools/axlibc"]
+]
 resolver = "2"
