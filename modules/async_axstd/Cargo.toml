@@ -77,3 +77,4 @@ axfeat = { path = "../async_axfeat", package = "async_axfeat" }
 arceos_api = { path = "../async_arceos_api", package = "async_arceos_api" }
 axio = { path = "../async_axio", package = "async_axio" }
 axsync = { path = "../async_axsync", package = "async_axsync", optional = true }
+async_utils = { path = "../async_utils"}

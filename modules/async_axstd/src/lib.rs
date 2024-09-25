@@ -75,3 +75,5 @@ pub mod time;
 pub mod fs;
 #[cfg(feature = "net")]
 pub mod net;
+
+pub use async_utils::async_main;
