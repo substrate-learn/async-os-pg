@@ -1,7 +1,6 @@
 use alloc::string::String;
-use async_io::Result;
+use async_io::{Result, AsyncStream};
 use core::fmt;
-use core::async_iter::AsyncIterator;
 use core::{pin::Pin, task::{Context, Poll}};
 
 use super::FileType;
@@ -48,7 +47,7 @@ impl<'a> ReadDir<'a> {
     }
 }
 
-impl<'a> AsyncIterator for ReadDir<'a> {
+impl<'a> AsyncStream for ReadDir<'a> {
     type Item = Result<DirEntry<'a>>;
     
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
