@@ -15,7 +15,19 @@
 ### 系统初始化
 
 1. 需要先初始化任务管理模块，其他模块的初始化均以协程任务的形式进行，可以利用多核加快初始化过程
-2. 其他模块都简历在任务管理模块之上
-3. ax_runtime 模块需要进行重写
+2. 其他模块都建立在任务管理模块之上
 
-先初始化堆分配器、内核地址映射（宏内核）、平台设备、再初始化任务管理模块
+```mermaid
+graph LR
+    subgraph modules
+        alloc
+        task
+        sync
+        fs
+        task --> alloc
+        sync --> task
+        fs --> task
+    end
+```
+
+模块之间的依赖关系如下，目前的 `task` 模块中没有提供类似于 [embassy](https://github.com/embassy-rs/embassy) 的静态空间分配，而是直接采用的动态空间管理，因此需要依赖 alloc 模块。其余的模块实现建立在 `task` 模块之上（需要先初始化 `task` 模块），但代码以及 `Cargo.toml` 中没有直接的依赖关系（通过 `core::task::Context` 以及 `core::task::Waker` 进行解耦）。
