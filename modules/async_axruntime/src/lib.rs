@@ -67,12 +67,6 @@ impl axlog::LogIf for LogIfImpl {
 
     fn current_task_id() -> Option<u64> {
         if is_init_ok() {
-            // #[cfg(feature = "multitask")]
-            // {
-            //     axtask::current_may_uninit().map(|curr| curr.id().as_u64())
-            // }
-            // #[cfg(not(feature = "multitask"))]
-            // None
             axtask::current_may_uninit().map_or(None, |curr| Some(curr.id().as_u64()))
         } else {
             None
@@ -144,30 +138,7 @@ pub extern "C" fn rust_main(cpu_id: usize, dtb: usize) {
     info!("Initialize platform devices...");
     axhal::platform_init();
 
-    // cfg_if::cfg_if! {
-    //     if #[cfg(feature = "monolithic")] {
-    //         axprocess::init_kernel_process();
-    //     }
-    //     else {
-    //         #[cfg(feature = "multitask")]
-    //         axtask::init_scheduler();
-    //     }
-    // }
     axtask::init_scheduler();
-    #[cfg(any(feature = "fs", feature = "net", feature = "display"))]
-    {
-        #[allow(unused_variables)]
-        let all_devices = axdriver::init_drivers();
-
-        #[cfg(feature = "fs")]
-        axfs::init_filesystems(all_devices.block);
-
-        #[cfg(feature = "net")]
-        axnet::init_network(all_devices.net);
-
-        #[cfg(feature = "display")]
-        axdisplay::init_display(all_devices.display);
-    }
 
     #[cfg(feature = "irq")]
     {
@@ -181,21 +152,48 @@ pub extern "C" fn rust_main(cpu_id: usize, dtb: usize) {
         init_tls();
     }
 
+    axtask::spawn_raw(main_fut, "main".into(), 0);
+
     info!("Primary CPU {} init OK.", cpu_id);
     INITED_CPUS.fetch_add(1, Ordering::Relaxed);
 }
 
-/// exit the main task
-pub fn exit_main() {
-    // #[cfg(feature = "multitask")]
-    // axtask::exit(0);
-    // #[cfg(not(feature = "multitask"))]
-    // {
-    //     debug!("main task exited: exit_code={}", 0);
-    //     axhal::misc::terminate();
-    // }
-    axtask::exit(0);
+
+
+async fn main_fut() -> i32 {
+    extern "C" { static ASYNC_MAIN: usize; }
+    use core::{pin::Pin, future::Future};
+    extern crate alloc;
+    use alloc::boxed::Box;
+    type BoxFut = Pin<Box<dyn Future<Output = i32> + Send + 'static>>;
+    
+    #[cfg(any(feature = "fs", feature = "net", feature = "display"))]
+    init_devices().await;
+    unsafe { 
+        let main_fut: fn() -> BoxFut = core::mem::transmute(ASYNC_MAIN);
+        let main_fut = main_fut();
+        main_fut.await
+    }
 }
+
+#[cfg(any(feature = "fs", feature = "net", feature = "display"))]
+async fn init_devices() -> i32 {
+    #[allow(unused_variables)]
+    let all_devices = axdriver::init_drivers();
+
+    #[cfg(feature = "fs")]
+    async_fs::init_filesystems(all_devices.block).await;
+
+    #[cfg(feature = "net")]
+    axnet::init_network(all_devices.net);
+
+    #[cfg(feature = "display")]
+    axdisplay::init_display(all_devices.display);
+    0
+}
+
+/// exit the main task
+pub fn exit_main() { }
 
 #[cfg(feature = "alloc")]
 #[allow(dead_code)]
@@ -299,7 +297,6 @@ fn init_interrupt() {
 
     axhal::irq::register_handler(TIMER_IRQ_NUM, || {
         update_timer();
-        // #[cfg(feature = "multitask")]
         axtask::on_timer_tick();
     });
 

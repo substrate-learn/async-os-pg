@@ -20,7 +20,7 @@ alloc = ["axalloc"]
 paging = ["axhal/paging", "lazy_init"]
 
 multitask = ["axtask/multitask"]
-fs = ["axdriver", "axfs"]
+fs = ["axdriver", "async_fs"]
 net = ["axdriver", "axnet"]
 display = ["axdriver", "axdisplay"]
 img = ["axdriver/img", "paging"]
@@ -40,5 +40,6 @@ lazy_init = { git = "https://github.com/Starry-OS/lazy_init.git", optional = tru
 
 axtask = { path = "../async_axtask", package = "async_axtask" }
 axhal = { path = "../async_axhal", package = "async_axhal" }
-axfs = { path = "../async_axfs", package = "async_axfs", optional = true }
-axmem = { path = "../async_axmem", package = "async_axmem", optional = true }
+
+async_utils = { path = "../async_utils"}
+async_fs = { path = "../async_fs", optional = true }

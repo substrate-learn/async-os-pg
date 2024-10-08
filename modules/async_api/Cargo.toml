@@ -1,0 +1,36 @@
+[package]
+name = "async_api"
+version = "0.1.0"
+edition = "2021"
+
+
+[features]
+default = []
+
+irq = ["axfeat/irq"]
+alloc = ["dep:axalloc", "axfeat/alloc"]
+multitask = ["axtask/multitask", "axfeat/multitask"]
+fs = ["dep:async_fs", "axfeat/fs"]
+net = ["dep:axnet", "axfeat/net"]
+display = ["dep:axdisplay", "axfeat/display"]
+
+# myfs = ["axfeat/myfs"]
+
+# Use dummy functions if the feature is not enabled
+dummy-if-not-enabled = []
+
+[dependencies]
+axconfig = { git = "https://github.com/Starry-OS/axconfig.git" }
+axlog = { git = "https://github.com/Starry-OS/axlog.git" }
+axerrno = { git = "https://github.com/Starry-OS/axerrno.git" }
+axalloc = { git = "https://github.com/Starry-OS/axalloc.git", optional = true }
+axnet = { git = "https://github.com/Starry-OS/axnet.git", optional = true }
+axdisplay = { git = "https://github.com/Starry-OS/axdisplay.git", optional = true }
+
+axruntime = { path = "../async_axruntime", package = "async_axruntime" }
+axfeat = { path = "../async_axfeat", package = "async_axfeat" }
+axtask = { path = "../async_axtask", package = "async_axtask" }
+async_io = { path = "../async_io" }
+axhal = { path = "../async_axhal", package = "async_axhal" }
+axsync = { path = "../async_sync", package = "async_sync" }
+async_fs = { path = "../async_fs", package = "async_fs", optional = true }

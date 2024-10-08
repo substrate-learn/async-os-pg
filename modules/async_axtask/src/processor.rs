@@ -1,8 +1,7 @@
-use core::{future::Future, pin::Pin};
-use crate::{stack_pool::StackPool, task::new_init, Executor, EXECUTORS, KERNEL_EXECUTOR};
+use crate::{stack_pool::StackPool, Executor, EXECUTORS, KERNEL_EXECUTOR};
 use lazy_init::LazyInit;
 use spinlock::SpinNoIrq;
-use alloc::{sync::Arc, boxed::Box, string::ToString};
+use alloc::sync::Arc;
 use taskctx::TaskStack;
 
 #[percpu::def_percpu]
@@ -47,22 +46,12 @@ pub fn put_prev_stack(kstack: TaskStack) {
     current_processor().stack_pool.lock().put_prev_stack(kstack)
 }
 
-type BoxFut = Pin<Box<dyn Future<Output = i32> + Send + 'static>>;
-extern "C" { static ASYNC_MAIN: usize; }
-
 pub(crate) fn init() {
     let kexecutor = Arc::new(Executor::new());
     KERNEL_EXECUTOR.init_by(kexecutor.clone());
-    unsafe { 
-        let main_fut: fn() -> BoxFut = core::mem::transmute(ASYNC_MAIN);
-        let main_fut = main_fut();
-        let main_task = new_init(main_fut, "main".to_string());
-        main_task.init_executor(kexecutor.clone());
-        Executor::add_task(main_task);
-        EXECUTORS.lock().insert(0, kexecutor.clone());
-        let processor = Processor::new(kexecutor);
-        PROCESSOR.with_current(|i| i.init_by(processor));
-    };
+    EXECUTORS.lock().insert(0, kexecutor.clone());
+    let processor = Processor::new(kexecutor);
+    PROCESSOR.with_current(|i| i.init_by(processor));
 }
 
 pub(crate) fn init_secondary() {

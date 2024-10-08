@@ -13,9 +13,8 @@ pub fn async_main(_args: TokenStream, item: TokenStream) -> TokenStream {
         #[used]
         #[no_mangle]
         static ASYNC_MAIN: fn() -> BoxFut = keep_name;
-        type BoxFut = Pin<Box<dyn Future<Output = i32> + Send + 'static>>;
+        type BoxFut = Pin<Box<dyn Future<Output = i32> + 'static>>;
 
-        #[no_mangle]
         fn keep_name() -> BoxFut {
             Box::pin(async { #block })
         }

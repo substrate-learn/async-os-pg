@@ -150,22 +150,10 @@ impl Deref for ScheduleTask {
 }
 
 pub fn new_task(
-    fut: Pin<Box<dyn Future<Output = i32> + 'static + Send>>,
+    fut: Pin<Box<dyn Future<Output = i32> + 'static>>,
     name: String, 
 ) -> AxTaskRef {
     let inner = TaskInner::new(
-        name, 
-        fut
-    );
-    let task = Arc::new(AxTask::new(ScheduleTask::new(inner)));
-    task
-}
-
-pub fn new_init(
-    fut: Pin<Box<dyn Future<Output = i32> + 'static + Send>>,
-    name: String, 
-) -> AxTaskRef {
-    let inner = TaskInner::new_init(
         name, 
         fut
     );

@@ -29,7 +29,7 @@ pub fn current() -> CurrentTask {
 
 #[no_mangle]
 pub extern "C" fn current_task_id() -> u64 {
-    CurrentTask::get().id().as_u64()
+    CurrentTask::try_get().map_or(0, |curr| curr.id().as_u64())
 }
 
 /// Initializes the task scheduler (for the primary CPU).
@@ -180,7 +180,7 @@ pub fn wakeup_task(task: AxTaskRef) {
 pub fn spawn_raw<F, T>(f: F, name: String, _stack_size: usize) -> AxTaskRef
 where
     F: FnOnce() -> T,
-    T: Future<Output = i32> + 'static + Send,
+    T: Future<Output = i32> + 'static,
 {
     let task = new_task(
         Box::pin(f()),
@@ -201,7 +201,7 @@ where
 pub fn spawn<F, T>(f: F) -> AxTaskRef
 where
     F: FnOnce() -> T,
-    T: Future<Output = i32> + 'static + Send,
+    T: Future<Output = i32> + 'static,
 {
     spawn_raw(f, "".into(), axconfig::TASK_STACK_SIZE)
 }

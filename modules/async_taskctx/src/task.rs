@@ -126,7 +126,7 @@ pub struct TaskInner {
     #[allow(unused)]
     time: UnsafeCell<TimeStat>,
 
-    fut: UnsafeCell<Pin<Box<dyn Future<Output = i32> + Send + 'static>>>
+    fut: UnsafeCell<Pin<Box<dyn Future<Output = i32> + 'static>>>
 
 }
 
@@ -242,13 +242,15 @@ impl TaskInner {
 impl TaskInner {
     pub fn new(
         name: String,
-        fut: Pin<Box<dyn Future<Output = i32> + Send + 'static>>,
+        fut: Pin<Box<dyn Future<Output = i32> + 'static>>,
     ) -> Self {
-        let mut t = Self {
+        let is_idle = &name == "idle";
+        let is_init = &name == "main";
+        let t = Self {
             id: TaskId::new(),
             name: UnsafeCell::new(name),
-            is_idle: false,
-            is_init: false,
+            is_idle,
+            is_init,
             #[cfg(feature = "preempt")]
             need_resched: AtomicBool::new(false),
             #[cfg(feature = "preempt")]
@@ -257,22 +259,10 @@ impl TaskInner {
             time: UnsafeCell::new(TimeStat::new()),
             fut: UnsafeCell::new(fut),
         };
-        if unsafe { &*t.name.get() }.as_str() == "idle" {
-            t.is_idle = true;
-        }
         t
     }
 
-    pub fn new_init(
-        name: String,
-        fut: Pin<Box<dyn Future<Output = i32> + Send + 'static>>,
-    ) -> Self {
-        let mut t = Self::new(name, fut);
-        t.is_init = true;
-        t
-    }
-
-    pub fn get_future(&self) -> &mut Pin<Box<dyn Future<Output = i32> + Send + 'static>> {
+    pub fn get_future(&self) -> &mut Pin<Box<dyn Future<Output = i32> + 'static>> {
         unsafe { self.fut.get().as_mut().unwrap() }
     }
 

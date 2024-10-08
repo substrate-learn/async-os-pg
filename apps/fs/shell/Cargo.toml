@@ -1,0 +1,13 @@
+[package]
+name = "arceos-shell"
+version = "0.1.0"
+edition = "2021"
+authors = ["Yuekai Jia <equation618@gmail.com>"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+default = []
+
+[dependencies]
+async_std = { path = "../../../modules/async_std", features = ["alloc", "paging", "irq", "multitask", "fs"] }

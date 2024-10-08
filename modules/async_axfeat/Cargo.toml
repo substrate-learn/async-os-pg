@@ -36,11 +36,11 @@ sched_rr = ["axtask/sched_rr", "irq"]
 sched_cfs = ["axtask/sched_cfs", "irq"]
 
 # File system
-fs = ["alloc", "paging", "axdriver/virtio-blk", "dep:axfs", "axruntime/fs"] # TODO: try to remove "paging"
-fatfs = ["axfs/fatfs"]
-lwext4_rust = ["axfs/lwext4_rust"]
-myfs = ["axfs?/myfs"]
-ext4_rs = ["axfs/ext4_rs"]
+fs = ["alloc", "paging", "axdriver/virtio-blk", "dep:async_fs", "axruntime/fs"] # TODO: try to remove "paging"
+fatfs = ["async_fs/fatfs"]
+# lwext4_rust = ["axfs/lwext4_rust"]
+# myfs = ["axfs?/myfs"]
+# ext4_rs = ["axfs/ext4_rs"]
 
 # Networking
 net = ["alloc", "paging", "axdriver/virtio-net", "dep:axnet", "axruntime/net"]
@@ -51,7 +51,7 @@ display = ["alloc", "paging", "axdriver/virtio-gpu", "dep:axdisplay", "axruntime
 # Device drivers
 bus-mmio = ["axdriver?/bus-mmio"]
 bus-pci = ["axdriver?/bus-pci"]
-driver-ramdisk = ["axdriver?/ramdisk", "axfs?/use-ramdisk"]
+# driver-ramdisk = ["axdriver?/ramdisk", "async_fs?/use-ramdisk"]
 driver-ixgbe = ["axdriver?/ixgbe"]
 driver-e1000 = ["axdriver?/e1000"]
 driver-bcm2835-sdhci = ["axdriver?/bcm2835-sdhci"]
@@ -76,5 +76,5 @@ axruntime = { path = "../async_axruntime", package = "async_axruntime", optional
 axtask = { path = "../async_axtask", package = "async_axtask", optional = true }
 taskctx = { path = "../async_taskctx", package = "async_taskctx", optional = true }
 axhal = { path = "../async_axhal", package = "async_axhal" }
-axfs = { path = "../async_axfs", package = "async_axfs", optional = true }
-axsync = { path = "../async_axsync", package = "async_axsync", optional = true }
+async_fs = { path = "../async_fs", package = "async_fs", optional = true }
+axsync = { path = "../async_sync", package = "async_sync", optional = true }
