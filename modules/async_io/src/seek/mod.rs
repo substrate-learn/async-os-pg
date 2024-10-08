@@ -131,4 +131,4 @@ pub trait Seek: AsyncSeek {
     }
 }
 
-impl<T: Seek + ?Sized> Seek for T {}
+impl<T: AsyncSeek + ?Sized> Seek for T {}
