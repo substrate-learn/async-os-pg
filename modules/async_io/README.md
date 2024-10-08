@@ -1,6 +1,6 @@
 # async_io
 
-这个模块提供了关于 IO 的异步接口（Read、BufRead、Seek、Write）定义以及部分默认实现，以及异步迭代器（Stream/AsyncIterator）接口的定义以及实现。
+这个模块提供了关于 IO 的异步接口（Read、BufRead、Seek、Write）定义以及部分默认实现，以及异步迭代器（Stream/AsyncIterator）接口的定义以及实现。目前的实现大部分参考自 [async-std](https://github.com/async-rs/async-std/tree/main)、[future-rs](https://github.com/rust-lang/futures-rs) ，但目标是在内核中使用异步 IO 的特性。
 
 ## 异步 IO 接口
 
