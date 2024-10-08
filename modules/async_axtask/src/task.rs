@@ -5,6 +5,8 @@ use alloc::{sync::Arc, string::String, boxed::Box, collections::VecDeque};
 use taskctx::TaskInner;
 use crate::{executor::Executor, AxTask, AxTaskRef};
 use spinlock::{SpinNoIrq, SpinNoIrqOnly};
+#[cfg(feature = "preempt")]
+use {taskctx::TaskStack, crate::put_prev_stack};
 
 /// The possible states of a task.
 #[repr(u8)]
@@ -17,6 +19,7 @@ pub enum TaskState {
     Exited = 4,
 }
 
+#[repr(C)]
 pub struct ScheduleTask {
     inner: TaskInner,
     /// Task state
@@ -25,6 +28,32 @@ pub struct ScheduleTask {
     executor: SpinNoIrq<Option<Arc<Executor>>>,
     ///
     wait_wakers: SpinNoIrq<VecDeque<Waker>>,
+    #[cfg(feature = "preempt")]
+    /// 如果当前协程被抢占，需要占用内核栈，并且记录上下文
+    preempt_ctx: SpinNoIrq<Option<PreemptCtx>>,
+}
+
+/// 抢占如果可以达到这种效果：
+///   高优先级的任务，可以优于中断的处理，在特定的场景下能够达到更好的实时性
+
+#[cfg(feature = "preempt")]
+pub struct PreemptCtx {
+    kstack: TaskStack,
+    trap_frame: *const axhal::arch::TrapFrame,
+}
+
+#[cfg(feature = "preempt")]
+impl PreemptCtx {
+    pub(crate) fn new(kstack: TaskStack, trap_frame: *const axhal::arch::TrapFrame) -> Self {
+        let kstack_top = kstack.top().as_usize();
+        let kstack_bottom = kstack.down().as_usize();
+        assert!((trap_frame as usize) >= kstack_bottom);
+        assert!((trap_frame as usize) < kstack_top);
+        Self {
+            kstack,
+            trap_frame,
+        }
+    }
 }
 
 unsafe impl Send for ScheduleTask {}
@@ -37,7 +66,16 @@ impl ScheduleTask {
             state: SpinNoIrqOnly::new(TaskState::Runable),
             executor: SpinNoIrq::new(None),
             wait_wakers: SpinNoIrq::new(VecDeque::new()),
+            #[cfg(feature = "preempt")]
+            preempt_ctx: SpinNoIrq::new(None),
         }
+    }
+
+    #[cfg(feature = "preempt")]
+    pub fn set_preempt_ctx(&self, tf: &axhal::arch::TrapFrame) {
+        let preempt_ctx = PreemptCtx::new(crate::pick_current_stack(), tf);
+        assert!(self.preempt_ctx.lock().is_none());
+        self.preempt_ctx.lock().replace(preempt_ctx);
     }
 
     #[inline]
@@ -112,14 +150,12 @@ impl Deref for ScheduleTask {
 }
 
 pub fn new_task(
-    fut: Pin<Box<dyn Future<Output = i32> + 'static + Send>>,
+    fut: Pin<Box<dyn Future<Output = i32> + 'static>>,
     name: String, 
-    stack_size: usize, 
 ) -> AxTaskRef {
-    let inner = TaskInner::new_future(
-        fut, 
+    let inner = TaskInner::new(
         name, 
-        stack_size
+        fut
     );
     let task = Arc::new(AxTask::new(ScheduleTask::new(inner)));
     task
@@ -152,13 +188,12 @@ impl CurrentTask {
         self.0.deref().clone()
     }
 
+    #[allow(unused)]
     pub(crate) fn ptr_eq(&self, other: &AxTaskRef) -> bool {
         Arc::ptr_eq(&self.0, other)
     }
 
     pub(crate) unsafe fn init_current(init_task: AxTaskRef) {
-        #[cfg(feature = "tls")]
-        axhal::arch::write_thread_pointer(init_task.get_tls_ptr());
         let ptr = Arc::into_raw(init_task);
         taskctx::set_current_task_ptr(ptr);
     }
@@ -185,25 +220,37 @@ impl Deref for CurrentTask {
 
 pub(crate) fn run_future(task: AxTaskRef) {
     use core::task::{Context, Poll};
+    #[cfg(feature = "preempt")]
+    restore_from_preempt_ctx(&task);
+    unsafe { CurrentTask::init_current(task.clone()) };
     let waker = crate::waker::waker_from_task(&task);
-    unsafe {
-        let ctx = &mut *task.ctx_mut_ptr();
-        let fut = &mut (*ctx.fut.as_mut_ptr());
-        if let Poll::Ready(exit_code) = fut.as_mut().poll(&mut Context::from_waker(&waker)) {
-            task.set_ctx_type(taskctx::ContextType::COROUTINE);
-            debug!("task exit: {}, exit_code={}", task.id_name(), exit_code);
-            task.set_state(TaskState::Exited);
-            task.set_exit_code(exit_code);
-            task.notify_waker_for_exit();
-            CurrentTask::clean_current();
-            if task.is_init() {
-                assert!(Arc::strong_count(&task) == 1, "count {}", Arc::strong_count(&task));
-                drop(task);
-                axhal::misc::terminate();
-            }
-        } else {
-            CurrentTask::clean_current_without_drop();
+    let fut = task.get_future();
+    if let Poll::Ready(exit_code) = fut.as_mut().poll(&mut Context::from_waker(&waker)) {
+        debug!("task exit: {}, exit_code={}", task.id_name(), exit_code);
+        task.set_state(TaskState::Exited);
+        task.set_exit_code(exit_code);
+        task.notify_waker_for_exit();
+        CurrentTask::clean_current();
+        if task.is_init() {
+            assert!(Arc::strong_count(&task) == 1, "count {}", Arc::strong_count(&task));
+            drop(task);
+            axhal::misc::terminate();
         }
-        // If the future is pending, its waker must be hold by other struts.
+    } else {
+        CurrentTask::clean_current_without_drop();
+    }
+}
+
+#[cfg(feature = "preempt")]
+pub fn restore_from_preempt_ctx(task: &AxTaskRef) {
+    let mut preempt_ctx_lock = task.preempt_ctx.lock();
+    if let Some(preempt_ctx) = preempt_ctx_lock.take() {
+        let PreemptCtx { kstack, trap_frame } = preempt_ctx;
+        put_prev_stack(kstack);
+        drop(preempt_ctx_lock);
+        unsafe { 
+            CurrentTask::init_current(task.clone());
+            (*trap_frame).restore()
+        };
     }
 }

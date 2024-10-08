@@ -19,11 +19,11 @@ pub async fn schedule_timeout(deadline: axhal::time::TimeValue) -> bool {
     core::future::poll_fn(|cx| {
         if !flag {
             flag = true;
-            crate::timers::set_alarm_wakeup(deadline, cx.waker().clone());
+            axsync::set_alarm_wakeup(deadline, cx.waker().clone());
             core::task::Poll::Pending
         } else {
             // may wake up by others, cancel the alarm
-            crate::timers::cancel_alarm(cx.waker());
+            axsync::cancel_alarm(cx.waker());
             // return whether the deadline has passed
             core::task::Poll::Ready(axhal::time::current_time() >= deadline)
         }
@@ -49,16 +49,16 @@ pub fn wakeup_task(task: AxTaskRef) {
     task.get_executor().put_prev_task(task, false);
 }
 
-// #[cfg(feature = "preempt")]
-pub fn preempt_schedule() {
-    // let curr = current();
-    // let waker = crate::waker::waker_from_task(curr.as_task_ref());
-    // // save context
-    // unsafe {
-    //     let ctx = &mut *curr.ctx_mut_ptr();
-    //     // taskctx::switch(prev_ctx, next_ctx, f);
-    // }
-    // waker.wake();
-
-    // unimplemented!()
+#[cfg(feature = "preempt")]
+pub fn preempt_schedule(tf: &axhal::arch::TrapFrame) {
+    let curr = current();
+    #[cfg(feature = "preempt")]
+    curr.set_preempt_pending(false);
+    curr.set_preempt_ctx(tf);
+    let new_kstack_top = crate::current_stack_top();
+    let ra = crate::run_idle as usize;
+    crate::task::CurrentTask::clean_current();
+    let waker = crate::waker::waker_from_task(curr.as_task_ref());
+    waker.wake();
+    unsafe { axhal::arch::jump(ra, new_kstack_top); }
 }

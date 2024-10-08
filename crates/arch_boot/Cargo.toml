@@ -19,12 +19,12 @@ default = []
 cfg-if = "1.0"
 log = "0.4"
 linux_syscall_api = { git = "https://github.com/Starry-OS/linux_syscall_api.git", optional = true }
-axhal = { git = "https://github.com/Starry-OS/axhal.git" }
 axconfig = { git = "https://github.com/Starry-OS/axconfig.git" }
 axalloc = { git = "https://github.com/Starry-OS/axalloc.git", optional = true }
 axlog = { git = "https://github.com/Starry-OS/axlog.git" }
 axruntime = { path = "../../modules/async_axruntime", package = "async_axruntime" }
 axtrap = { path = "../../modules/async_axtrap", package = "async_axtrap" }
+axhal = { path = "../../modules/async_axhal", package = "async_axhal" }
 
 [build-dependencies]
 axconfig = { git = "https://github.com/Starry-OS/axconfig.git" }

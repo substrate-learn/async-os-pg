@@ -9,19 +9,17 @@ extern crate alloc;
 #[macro_use]
 extern crate log;
 
+mod processor;
 mod executor;
 mod task;
 mod api;
-mod wait_list;
-mod wait_queue;
 pub mod schedule;
 mod stack_pool;
 mod waker;
-mod timers;
 
 pub use api::*;
-pub use wait_queue::*;
-pub use wait_list::*;
+use executor::*;
+pub use processor::*;
 
 /// The reference type of a task.
 pub type AxTaskRef = alloc::sync::Arc<AxTask>;

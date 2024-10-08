@@ -21,8 +21,8 @@ else
     lib_feat_prefix := axstarry/
   else 
     # TODO: it's better to use `axfeat/` as `ax_feat_prefix`, but all apps need to have `axfeat` as a dependency
-    ax_feat_prefix := async_axstd/
-    lib_feat_prefix := async_axstd/
+    ax_feat_prefix := async_std/
+    lib_feat_prefix := async_std/
   lib_features :=
   endif
 endif

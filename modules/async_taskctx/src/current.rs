@@ -169,12 +169,11 @@ impl CURRENT_TASK_PTR_WRAPPER {
         {
             #[cfg(target_arch = "riscv64")]
             {
-                let _tmp: usize;
                 core::arch::asm!(
                     "lui {0}, %hi({VAR})",
                     "add {0}, {0}, gp",
                     "sd {1}, %lo({VAR})({0})",
-                    out(reg) _tmp, in(reg) val,
+                    out(reg) _, in(reg) val,
                     VAR = sym __PERCPU_CURRENT_TASK_PTR
                 );
             }

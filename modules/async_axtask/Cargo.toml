@@ -6,11 +6,11 @@ edition = "2021"
 [features]
 default = ["multitask"]
 
-multitask = ["taskctx/multitask"]
-irq = []
-tls = ["axhal/tls", "taskctx/tls"]
+multitask = []
+irq = ["axsync/irq"]
+tls = ["axhal/tls"]
 
-preempt = ["irq", "percpu?/preempt", "kernel_guard/preempt", "taskctx/preempt"]
+preempt = ["irq", "percpu/preempt", "kernel_guard/preempt", "taskctx/preempt"]
 
 sched_fifo = ["multitask"]
 sched_rr = ["multitask", "preempt"]
@@ -19,17 +19,18 @@ sched_cfs = ["multitask", "preempt"]
 [dependencies]
 cfg-if = "1.0"
 log = "0.4"
-percpu = { git = "https://github.com/Starry-OS/percpu.git", optional = true }
+percpu = { git = "https://github.com/Starry-OS/percpu.git" }
 kernel_guard = { git = "https://github.com/Starry-OS/kernel_guard.git", optional = true }
 spinlock = { git = "https://github.com/Starry-OS/spinlock.git" }
 axlog = { git = "https://github.com/Starry-OS/axlog.git" }
 scheduler = { git = "https://github.com/Starry-OS/scheduler.git" }
 linked_list = { git = "https://github.com/Starry-OS/linked_list.git" }
-axhal = { git = "https://github.com/Starry-OS/axhal.git" }
 axconfig = { git = "https://github.com/Starry-OS/axconfig.git"}
 lazy_init = { git = "https://github.com/Starry-OS/lazy_init.git" }
 timer_list = { git = "https://github.com/Starry-OS/timer_list.git" }
 axbacktrace = { git = "https://github.com/kern-crates/axbacktrace.git" }
 
-taskctx = { path = "../async_taskctx", package = "async_taskctx", features = ["future"] }
+taskctx = { path = "../async_taskctx", package = "async_taskctx" }
+axhal = { path = "../async_axhal", package = "async_axhal" }
+axsync = { path = "../async_sync", package = "async_sync" }
 

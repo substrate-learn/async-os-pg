@@ -1,0 +1,76 @@
+[package]
+name = "async_std"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+
+monolithic = ["axhal/monolithic"]
+
+img = ["axfeat/img"]
+
+# Multicore
+smp = ["axfeat/smp", "spinlock/smp", "arch_boot/smp"]
+
+# Interrupts
+irq = ["async_api/irq", "axfeat/irq", "arch_boot/irq"]
+
+# Memory
+alloc = ["async_api/alloc", "axfeat/alloc"]
+alloc-tlsf = ["axfeat/alloc-tlsf"]
+alloc-slab = ["axfeat/alloc-slab"]
+alloc-buddy = ["axfeat/alloc-buddy"]
+paging = ["axfeat/paging"]
+tls = ["axfeat/tls"]
+
+# Multi-threading and scheduler
+multitask = ["async_api/multitask", "axfeat/multitask"]
+sched_fifo = ["axfeat/sched_fifo"]
+sched_rr = ["axfeat/sched_rr", "arch_boot/preempt"]
+sched_cfs = ["axfeat/sched_cfs", "arch_boot/preempt"]
+
+# File system
+fs = ["async_api/fs", "axfeat/fs"]
+# myfs = ["async_api/myfs", "axfeat/myfs"]
+fatfs = ["axfeat/fatfs"]
+# lwext4_rust = ["axfeat/lwext4_rust", "fs"]
+
+# Networking
+net = ["async_api/net", "axfeat/net"]
+dns = []
+
+# Display
+display = ["async_api/display", "axfeat/display"]
+
+# Device drivers
+bus-mmio = ["axfeat/bus-mmio"]
+bus-pci = ["axfeat/bus-pci"]
+# driver-ramdisk = ["axfeat/driver-ramdisk"]
+driver-ixgbe = ["axfeat/driver-ixgbe"]
+driver-bcm2835-sdhci = ["axfeat/driver-bcm2835-sdhci"]
+
+# Logging
+log-level-off = ["axfeat/log-level-off"]
+log-level-error = ["axfeat/log-level-error"]
+log-level-warn = ["axfeat/log-level-warn"]
+log-level-info = ["axfeat/log-level-info"]
+log-level-debug = ["axfeat/log-level-debug"]
+log-level-trace = ["axfeat/log-level-trace"]
+
+
+[dependencies]
+axlog = { git = "https://github.com/Starry-OS/axlog.git" }
+futures-core = { version = "0.3.30", default-features = false, features = ["alloc"] }
+pin-project-lite = "0.2.14"
+lazy_init = { git = "https://github.com/Starry-OS/lazy_init.git" }
+
+axerrno = { git = "https://github.com/Starry-OS/axerrno.git" }
+spinlock = { git = "https://github.com/Starry-OS/spinlock.git" }
+arch_boot = { git = "https://github.com/Starry-OS/arch_boot.git" }
+
+axfeat = { path = "../async_axfeat", package = "async_axfeat" }
+async_api = { path = "../async_api" }
+async_utils = { path = "../async_utils"}
+async_io = { path = "../async_io"}
+async_sync = { path = "../async_sync" }
+axhal = { path = "../async_axhal", package = "async_axhal"}

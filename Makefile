@@ -43,8 +43,6 @@ APP_FEATURES ?=
 RUSTFLAGS ?=
 STRUCT ?= Unikernel
 
-override FEATURES += fp_simd
-
 # QEMU options
 BLK ?= n
 NET ?= n
