@@ -47,8 +47,6 @@ impl Thread {
 pub struct Builder {
     // A name for the thread-to-be, for identification in panic messages
     name: Option<String>,
-    // The size of the stack for the spawned thread in bytes
-    stack_size: Option<usize>,
 }
 
 impl Builder {
@@ -57,19 +55,12 @@ impl Builder {
     pub const fn new() -> Builder {
         Builder {
             name: None,
-            stack_size: None,
         }
     }
 
     /// Names the thread-to-be.
     pub fn name(mut self, name: String) -> Builder {
         self.name = Some(name);
-        self
-    }
-
-    /// Sets the size of the stack (in bytes) for the new thread.
-    pub fn stack_size(mut self, size: usize) -> Builder {
-        self.stack_size = Some(size);
         self
     }
 
@@ -94,9 +85,6 @@ impl Builder {
         T: Send + 'static,
     {
         let name = self.name.unwrap_or_default();
-        let stack_size = self
-            .stack_size
-            .unwrap_or(async_api::config::TASK_STACK_SIZE);
 
         let my_packet = Arc::new(Packet {
             result: UnsafeCell::new(None),
@@ -114,7 +102,7 @@ impl Builder {
             0
         };
 
-        let task = api::ax_spawn(main, name, stack_size);
+        let task = api::ax_spawn(main, name);
         Ok(JoinHandle {
             thread: Thread::from_id(task.id()),
             native: task,

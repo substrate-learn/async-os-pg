@@ -15,7 +15,7 @@
     feature = "dummy-if-not-enabled"
 ))]
 extern crate alloc;
-extern crate axruntime;
+extern crate runtime;
 
 #[macro_use]
 mod macros;
@@ -82,7 +82,7 @@ pub mod stdio {
 pub mod task {
     use core::future::Future;
     use core::task::Context;
-    pub use axtask::JoinFuture as AxJoinFuture;
+    pub use trampoline::JoinFuture as AxJoinFuture;
 
     define_api_type! {
         @cfg "multitask";
@@ -115,7 +115,6 @@ pub mod task {
         pub fn ax_spawn(
             f: impl core::future::Future<Output = i32> + 'static,
             name: alloc::string::String,
-            stack_size: usize
         ) -> AxTaskHandle;
         
         /// Sets the priority of the current task.
@@ -129,7 +128,7 @@ pub mod task {
 
         /// Waits for the given task to exit, and returns its exit code (the
         /// argument of [`ax_exit`]).
-        pub fn ax_wait_for_exit(task: AxTaskHandle) -> axtask::JoinFuture;
+        pub fn ax_wait_for_exit(task: AxTaskHandle) -> trampoline::JoinFuture;
 
         /// Blocks the current task and put it into the wait queue, until the
         /// given condition becomes true, or the the given duration has elapsed

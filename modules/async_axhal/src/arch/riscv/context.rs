@@ -166,6 +166,35 @@ impl TrapFrame {
             options(noreturn)
         );
     }
+
+    #[naked]
+    pub unsafe extern "C" fn urestore(&self) {
+        core::arch::asm!(
+            r#"
+            mv      sp, a0
+            .short  0x2432                      // fld fs0,264(sp)
+            .short  0x24d2                      // fld fs1,272(sp)
+            LDR     t0, sp, 2
+            STR     gp, sp, 2
+            mv      gp, t0
+            LDR     t0, sp, 3
+            STR     tp, sp, 3
+            mv      tp, t0
+            addi    a0, a0, {trap_frame_size}
+            csrw    sscratch, a0
+
+            LDR     t0, sp, 31
+            LDR     t1, sp, 32
+            csrw    sepc, t0
+            csrw    sstatus, t1
+            POP_GENERAL_REGS
+            LDR     sp, sp, 1
+            sret
+            "#,
+            trap_frame_size = const core::mem::size_of::<TrapFrame>(),
+            options(noreturn)
+        );
+    }
 }
 
 #[no_mangle]

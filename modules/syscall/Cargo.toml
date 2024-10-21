@@ -1,0 +1,52 @@
+[package]
+name = "syscall"
+version = "0.1.0"
+edition = "2021"
+
+
+[features]
+# default = ["monolithic"]
+
+# monolithic = ["axfeat/monolithic", "irq", "paging", "fs", "multitask", "net"]
+# monolithic = ["feat/monolithic", "irq", "paging", "fs", "multitask"]
+
+# Interrupts
+irq = []
+
+# Memory
+paging = []
+
+# # Multi-threading and scheduler
+# multitask = ["feat/multitask"]
+
+# # Fs
+# fs = ["feat/fs"]
+
+# ip = ["axnet/ip"]
+# net = ["ip", "axnet/monolithic"]
+
+[dependencies]
+cfg-if = "1.0"
+axlog = { git = "https://github.com/Starry-OS/axlog.git" }
+# axnet = { git = "https://github.com/Starry-OS/axnet.git" }
+# axsignal = { git = "https://github.com/Starry-OS/axsignal.git" }
+axconfig = { git = "https://github.com/Starry-OS/axconfig.git" }
+# axfutex = { git = "https://github.com/Starry-OS/axfutex.git"}
+lazy_init = { git = "https://github.com/Starry-OS/lazy_init.git" }
+spinlock = { git = "https://github.com/Starry-OS/spinlock.git" }
+axerrno = { git = "https://github.com/Starry-OS/axerrno.git" }
+numeric-enum-macro = { git = "https://github.com/mexus/numeric-enum-macro" }
+bitflags = "2.6"
+rand = { version = "0.8.5", default-features = false, features = ["small_rng"] }
+num_enum = { version = "0.5.11", default-features = false }
+
+
+# runtime = { path = "../runtime" }
+async_fs = { path = "../async_fs" }
+axhal = { path = "../async_axhal", package = "async_axhal" }
+executor = { path = "../executor" }
+sync = { path = "../sync", package = "sync" }
+async_mem = { path = "../async_mem" }
+async_io = { path = "../async_io" }
+# feat = { path = "../feat" }
+

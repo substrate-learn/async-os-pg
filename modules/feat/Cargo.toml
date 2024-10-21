@@ -1,0 +1,78 @@
+[package]
+name = "feat"
+version = "0.1.0"
+edition = "2021"
+authors = ["Fangliang Zhao <1491657576@qq.com>"]
+description = "Top-level feature selection"
+license = "GPL-3.0-or-later OR Apache-2.0"
+
+[features]
+default = []
+
+monolithic = ["trampoline/monolithic", "fs", "paging", "runtime/irq"]
+
+img = ["runtime/img"]
+
+# Multicore
+smp = ["arch_boot/smp"]
+
+# Interrupts
+irq = ["runtime/irq"]
+
+# Memory
+alloc = ["axalloc"]
+alloc-tlsf = ["axalloc/tlsf"]
+alloc-slab = ["axalloc/slab"]
+alloc-buddy = ["axalloc/buddy"]
+paging = ["alloc", "axhal/paging", "runtime/paging"]
+# tls = ["alloc", "axhal/tls", "executor?/tls"]
+
+# Multi-threading and scheduler
+multitask = ["alloc", "sync"]
+sched_fifo = ["trampoline/sched_fifo"]
+sched_rr = ["trampoline/sched_rr", "trampoline/preempt"]
+sched_cfs = ["trampoline/sched_cfs", "trampoline/preempt"]
+
+# # File system
+fs = ["alloc", "paging", "axdriver/virtio-blk", "dep:async_fs", "runtime/fs"] # TODO: try to remove "paging"
+fatfs = ["async_fs/fatfs"]
+# lwext4_rust = ["axfs/lwext4_rust"]
+# myfs = ["axfs?/myfs"]
+# ext4_rs = ["axfs/ext4_rs"]
+
+# # Networking
+# net = ["alloc", "paging", "axdriver/virtio-net", "dep:axnet"]
+
+# Display
+# display = ["alloc", "paging", "axdriver/virtio-gpu", "dep:axdisplay"]
+
+# Device drivers
+# bus-mmio = ["axdriver?/bus-mmio"]
+# bus-pci = ["axdriver?/bus-pci"]
+# driver-ramdisk = ["axdriver?/ramdisk", "async_fs?/use-ramdisk"]
+# driver-ixgbe = ["axdriver?/ixgbe"]
+# driver-e1000 = ["axdriver?/e1000"]
+# driver-bcm2835-sdhci = ["axdriver?/bcm2835-sdhci"]
+
+# Logging
+log-level-off = ["axlog/log-level-off"]
+log-level-error = ["axlog/log-level-error"]
+log-level-warn = ["axlog/log-level-warn"]
+log-level-info = ["axlog/log-level-info"]
+log-level-debug = ["axlog/log-level-debug"]
+log-level-trace = ["axlog/log-level-trace"]
+
+[dependencies]
+axlog = { git = "https://github.com/Starry-OS/axlog.git" }
+axalloc = { git = "https://github.com/Starry-OS/axalloc.git", optional = true }
+axdriver = { git = "https://github.com/Starry-OS/axdriver.git", optional = true }
+axnet = { git = "https://github.com/Starry-OS/axnet.git", optional = true }
+axdisplay = { git = "https://github.com/Starry-OS/axdisplay.git", optional = true }
+spinlock = { git = "https://github.com/Starry-OS/spinlock.git", optional = true }
+
+runtime = { path = "../runtime" }
+arch_boot = { path = "../arch_boot" }
+axhal = { path = "../async_axhal", package = "async_axhal" }
+async_fs = { path = "../async_fs", optional = true }
+sync = { path = "../sync", optional = true }
+trampoline = { path = "../trampoline", optional = true }

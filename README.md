@@ -31,3 +31,17 @@ graph LR
 ```
 
 模块之间的依赖关系如下，目前的 `task` 模块中没有提供类似于 [embassy](https://github.com/embassy-rs/embassy) 的静态空间分配，而是直接采用的动态空间管理，因此需要依赖 alloc 模块。其余的模块实现建立在 `task` 模块之上（需要先初始化 `task` 模块），但代码以及 `Cargo.toml` 中没有直接的依赖关系（通过 `core::task::Context` 以及 `core::task::Waker` 进行解耦）。
+
+
+默认既是多任务，因为异步操作系统本就是为了提高系统的并发度，没有多任务何来并发度之说。
+
+## Feature
+
+目标：梳理好 feature 之间的关系，提供梳妆结构，而不出现循环依赖
+
+smp:
+    arch -> runtime -> axhal + trampoline
+irq:
+    runtime -> axhal + trampoline + percpu + kernel_guard
+paging:
+    runtime -> axhal + lazy_init

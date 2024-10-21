@@ -4,5 +4,5 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-async_axstd = { path = "../../modules/async_std", package = "async_std", features = ["alloc", "paging", "irq", "multitask", "fs", "monolithic"] }
-async_executor = { path = "../../modules/async_executor" }
+async_std = { path = "../../modules/async_std", features = ["monolithic"] }
+trampoline = { path = "../../modules/trampoline" }

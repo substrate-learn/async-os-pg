@@ -1,0 +1,34 @@
+[package]
+name = "taskctx"
+version = "0.1.0"
+edition = "2021"
+authors = ["Fangliang Zhao <1491657576@qq.com>"]
+description = "The trampoline of task switching."
+license = "GPL-3.0-or-later OR Apache-2.0"
+keywords = ["Task Switching"]
+
+[features]
+
+preempt = []
+sched_fifo = []
+sched_rr = ["preempt"]
+sched_cfs = ["preempt"]
+
+[dependencies]
+log = "0.4"
+cfg-if = "1.0"
+static_assertions = "1.1.0"
+memory_addr = { git = "https://github.com/Starry-OS/memory_addr.git" }
+lazy_init = { git = "https://github.com/Starry-OS/lazy_init.git" }
+numeric-enum-macro = { git = "https://github.com/mexus/numeric-enum-macro" }
+axconfig = { git = "https://github.com/Starry-OS/axconfig.git" }
+spinlock = { git = "https://github.com/Starry-OS/spinlock.git" }
+scheduler = { git = "https://github.com/Starry-OS/scheduler.git" }
+percpu = { git = "https://github.com/Starry-OS/percpu.git" }
+
+async_axhal = { path = "../async_axhal" }
+
+
+[target.'cfg(any(target_arch = "riscv32", target_arch = "riscv64"))'.dependencies]
+riscv = "0.11"
+sbi-rt = { version = "0.0.3", features = ["legacy"] }

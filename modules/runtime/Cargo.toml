@@ -1,0 +1,43 @@
+[package]
+name = "runtime"
+version = "0.1.0"
+edition = "2021"
+authors = ["Fangliang Zhao <1491657576@qq.com>"]
+description = "Runtime library"
+license = "GPL-3.0-or-later OR Apache-2.0"
+keywords = ["Runtime"]
+
+[features]
+default = []
+
+smp = ["axhal/smp", "trampoline/smp"]
+
+irq = ["axhal/irq", "trampoline/irq", "percpu", "kernel_guard"]
+
+paging = ["axhal/paging", "lazy_init"]
+
+multitask = ["trampoline/multitask"]
+
+fs = ["axdriver", "async_fs"]
+# net = ["axdriver", "axnet"]
+# display = ["axdriver", "axdisplay"]
+img = ["axdriver/img", "paging", "axhal/img"]
+
+[dependencies]
+cfg-if = "1.0"
+axlog = { git = "https://github.com/Starry-OS/axlog.git" }
+axconfig = { git = "https://github.com/Starry-OS/axconfig.git" }
+axalloc = { git = "https://github.com/Starry-OS/axalloc.git" }
+axdriver = { git = "https://github.com/Starry-OS/axdriver.git", optional = true }
+axnet = { git = "https://github.com/Starry-OS/axnet.git", optional = true }
+axdisplay = { git = "https://github.com/Starry-OS/axdisplay.git", optional = true }
+crate_interface = { git = "https://github.com/Starry-OS/crate_interface.git" }
+percpu = { git = "https://github.com/Starry-OS/percpu.git", optional = true }
+kernel_guard = { git = "https://github.com/Starry-OS/kernel_guard.git", optional = true }
+lazy_init = { git = "https://github.com/Starry-OS/lazy_init.git", optional = true }
+
+
+axhal = { path = "../async_axhal", package = "async_axhal" }
+async_utils = { path = "../async_utils"}
+async_fs = { path = "../async_fs", optional = true }
+trampoline = { path = "../trampoline" }

@@ -119,6 +119,8 @@ pub struct TaskInner {
     /// Only when the count is zero, the task can be preempted.
     preempt_disable_count: AtomicUsize,
 
+    set_child_tid: AtomicU64,
+    clear_child_tid: AtomicU64,
 
     exit_code: AtomicI32,
 
@@ -154,6 +156,20 @@ impl TaskInner {
     /// Get a combined string of the task ID and name.
     pub fn id_name(&self) -> alloc::string::String {
         alloc::format!("Task({}, {:?})", self.id.as_u64(), self.name())
+    }
+
+    pub fn set_child_tid(&self, tid: usize) {
+        self.set_child_tid.store(tid as u64, Ordering::Release)
+    }
+
+    /// clear (zero) the child thread ID at the location pointed to by child_tid in clone args
+    pub fn set_clear_child_tid(&self, tid: usize) {
+        self.clear_child_tid.store(tid as u64, Ordering::Release)
+    }
+
+    /// get the pointer to the child thread ID
+    pub fn get_clear_child_tid(&self) -> usize {
+        self.clear_child_tid.load(Ordering::Acquire) as usize
     }
 
 }
@@ -255,6 +271,8 @@ impl TaskInner {
             need_resched: AtomicBool::new(false),
             #[cfg(feature = "preempt")]
             preempt_disable_count: AtomicUsize::new(0),
+            set_child_tid: AtomicU64::new(0),
+            clear_child_tid: AtomicU64::new(0),
             exit_code: AtomicI32::new(0),
             time: UnsafeCell::new(TimeStat::new()),
             fut: UnsafeCell::new(fut),

@@ -5,7 +5,7 @@
 //! 正常的做法应该是等键盘输入产生了中断后才唤醒任务，将其放入就绪队列
 //! 
 use async_io::{AsyncRead, AsyncWrite, BufReader, Write};
-use async_sync::Mutex;
+use sync::Mutex;
 use core::{pin::Pin, task::{Context, Poll}};
 use super::{Result, ax_console_read_byte, ax_console_write_bytes};
 use lazy_init::LazyInit;

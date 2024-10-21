@@ -1,0 +1,19 @@
+[package]
+name = "sync"
+version = "0.1.0"
+edition = "2021"
+authors = ["Fangliang Zhao <1491657576@qq.com>"]
+description = "Synchronization primitives"
+license = "GPL-3.0-or-later OR Apache-2.0"
+keywords = ["Synchronization"]
+
+[features]
+irq = []
+
+[dependencies]
+spinlock = { git = "https://github.com/Starry-OS/spinlock.git" }
+linked_list = { git = "https://github.com/Starry-OS/linked_list.git" }
+lazy_init = { git = "https://github.com/Starry-OS/lazy_init.git" }
+timer_list = { git = "https://github.com/Starry-OS/timer_list.git" }
+axhal = { path = "../async_axhal", package = "async_axhal" }
+log = "0.4"

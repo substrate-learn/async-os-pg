@@ -13,6 +13,7 @@ keywords = ["Starry"]
 [features]
 default = []
 
+monolithic = []
 img = ["axruntime/img"]
 
 # Multicore
@@ -22,12 +23,12 @@ smp = ["axhal/smp", "axruntime/smp", "spinlock/smp"]
 irq = ["axhal/irq", "axruntime/irq", "axtask?/irq"]
 
 # Memory
-alloc = ["axalloc", "axruntime/alloc"]
+alloc = ["axalloc", "axruntime"]
 alloc-tlsf = ["axalloc/tlsf"]
 alloc-slab = ["axalloc/slab"]
 alloc-buddy = ["axalloc/buddy"]
 paging = ["alloc", "axhal/paging", "axruntime/paging"]
-tls = ["alloc", "axhal/tls", "axruntime/tls", "axtask?/tls"]
+tls = ["alloc", "axhal/tls", "axtask?/tls"]
 
 # Multi-threading and scheduler
 multitask = ["alloc", "axtask/multitask", "axsync", "axruntime/multitask"]
@@ -72,8 +73,9 @@ axnet = { git = "https://github.com/Starry-OS/axnet.git", optional = true }
 axdisplay = { git = "https://github.com/Starry-OS/axdisplay.git", optional = true }
 spinlock = { git = "https://github.com/Starry-OS/spinlock.git", optional = true }
 
-axruntime = { path = "../async_axruntime", package = "async_axruntime", optional = true }
-axtask = { path = "../async_axtask", package = "async_axtask", optional = true }
+axruntime = { path = "../runtime", package = "runtime", optional = true }
+# axtask = { path = "../async_axtask", package = "async_axtask", optional = true }
+axtask = { path = "../async_executor", package = "async_executor", optional = true }
 taskctx = { path = "../async_taskctx", package = "async_taskctx", optional = true }
 axhal = { path = "../async_axhal", package = "async_axhal" }
 async_fs = { path = "../async_fs", package = "async_fs", optional = true }

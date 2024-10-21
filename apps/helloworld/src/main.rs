@@ -23,7 +23,7 @@ async fn main() -> i32 {
     let res = j.await.unwrap();
     async_std::println!("res {}", res);
     async_std::thread::sleep(Duration::from_secs(1)).await;
-    for i in 0..2 {
+    for i in 0..100 {
         async_std::println!("for test preempt {}", i);
     }
     0

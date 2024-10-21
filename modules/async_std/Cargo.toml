@@ -5,57 +5,57 @@ edition = "2021"
 
 [features]
 
-monolithic = ["axhal/monolithic"]
+monolithic = ["feat/monolithic"]
 
-img = ["axfeat/img"]
+img = ["feat/img"]
 
 # Multicore
-smp = ["axfeat/smp", "spinlock/smp", "arch_boot/smp"]
+smp = ["feat/smp"]
 
 # Interrupts
-irq = ["async_api/irq", "axfeat/irq", "arch_boot/irq"]
+irq = ["async_api/irq", "feat/irq"]
 
 # Memory
-alloc = ["async_api/alloc", "axfeat/alloc"]
-alloc-tlsf = ["axfeat/alloc-tlsf"]
-alloc-slab = ["axfeat/alloc-slab"]
-alloc-buddy = ["axfeat/alloc-buddy"]
-paging = ["axfeat/paging"]
-tls = ["axfeat/tls"]
+alloc = ["async_api/alloc", "feat/alloc"]
+alloc-tlsf = ["feat/alloc-tlsf"]
+alloc-slab = ["feat/alloc-slab"]
+alloc-buddy = ["feat/alloc-buddy"]
+# paging = ["feat/paging"]
+# tls = ["feat/tls"]
 
 # Multi-threading and scheduler
-multitask = ["async_api/multitask", "axfeat/multitask"]
-sched_fifo = ["axfeat/sched_fifo"]
-sched_rr = ["axfeat/sched_rr", "arch_boot/preempt"]
-sched_cfs = ["axfeat/sched_cfs", "arch_boot/preempt"]
+multitask = ["async_api/multitask", "feat/multitask"]
+sched_fifo = ["feat/sched_fifo"]
+sched_rr = ["feat/sched_rr"]
+sched_cfs = ["feat/sched_cfs"]
 
 # File system
-fs = ["async_api/fs", "axfeat/fs"]
-# myfs = ["async_api/myfs", "axfeat/myfs"]
-fatfs = ["axfeat/fatfs"]
-# lwext4_rust = ["axfeat/lwext4_rust", "fs"]
+fs = ["async_api/fs", "feat/fs"]
+# myfs = ["async_api/myfs", "feat/myfs"]
+fatfs = ["feat/fatfs"]
+# lwext4_rust = ["feat/lwext4_rust", "fs"]
 
-# Networking
-net = ["async_api/net", "axfeat/net"]
-dns = []
+# # Networking
+# net = ["async_api/net", "feat/net"]
+# dns = []
 
-# Display
-display = ["async_api/display", "axfeat/display"]
+# # Display
+# display = ["async_api/display", "feat/display"]
 
-# Device drivers
-bus-mmio = ["axfeat/bus-mmio"]
-bus-pci = ["axfeat/bus-pci"]
+# # Device drivers
+# bus-mmio = ["feat/bus-mmio"]
+# bus-pci = ["feat/bus-pci"]
 # driver-ramdisk = ["axfeat/driver-ramdisk"]
-driver-ixgbe = ["axfeat/driver-ixgbe"]
-driver-bcm2835-sdhci = ["axfeat/driver-bcm2835-sdhci"]
+# driver-ixgbe = ["feat/driver-ixgbe"]
+# driver-bcm2835-sdhci = ["feat/driver-bcm2835-sdhci"]
 
 # Logging
-log-level-off = ["axfeat/log-level-off"]
-log-level-error = ["axfeat/log-level-error"]
-log-level-warn = ["axfeat/log-level-warn"]
-log-level-info = ["axfeat/log-level-info"]
-log-level-debug = ["axfeat/log-level-debug"]
-log-level-trace = ["axfeat/log-level-trace"]
+log-level-off = ["feat/log-level-off"]
+log-level-error = ["feat/log-level-error"]
+log-level-warn = ["feat/log-level-warn"]
+log-level-info = ["feat/log-level-info"]
+log-level-debug = ["feat/log-level-debug"]
+log-level-trace = ["feat/log-level-trace"]
 
 
 [dependencies]
@@ -66,11 +66,12 @@ lazy_init = { git = "https://github.com/Starry-OS/lazy_init.git" }
 
 axerrno = { git = "https://github.com/Starry-OS/axerrno.git" }
 spinlock = { git = "https://github.com/Starry-OS/spinlock.git" }
-arch_boot = { git = "https://github.com/Starry-OS/arch_boot.git" }
 
-axfeat = { path = "../async_axfeat", package = "async_axfeat" }
+arch_boot = { path = "../arch_boot" }
+feat = { path = "../feat", package = "feat" }
 async_api = { path = "../async_api" }
 async_utils = { path = "../async_utils"}
 async_io = { path = "../async_io"}
-async_sync = { path = "../async_sync" }
+sync = { path = "../sync" }
 axhal = { path = "../async_axhal", package = "async_axhal"}
+trampoline = { path = "../trampoline" }

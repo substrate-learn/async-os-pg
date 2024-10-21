@@ -1,6 +1,3 @@
-[patch."https://github.com/Starry-OS/arch_boot.git".arch_boot]
-path = "crates/arch_boot"
-
 [profile.dev]
 lto = true
 
@@ -9,8 +6,15 @@ lto = true
 
 [workspace]
 members = [
-    "apps/helloworld", "apps/user_boot", "apps/fs/shell",
-    "modules/async_axtask", "modules/async_axruntime", "modules/async_taskctx", "modules/async_axfeat", "modules/async_sync", "modules/async_axtrap", "modules/async_axhal", "modules/async_utils", "modules/async_executor",
-    "crates/arch_boot", "modules/async_io", "modules/async_std", "modules/async_fs", "modules/async_vfs", "modules/async_api",
+    "apps/helloworld", 
+    "apps/user_boot", 
+    "apps/fs/shell",
+    "modules/async_axhal",
+    "modules/async_utils",
+    "modules/async_io", "modules/async_std", "modules/async_fs", "modules/async_vfs", "modules/async_api", 
+    "modules/async_mem", "modules/taskctx", "modules/trampoline", "modules/executor", "modules/sync", "modules/runtime", 
+    "modules/arch_boot", 
+    "modules/syscall", 
+    "modules/feat"
 ]
 resolver = "2"

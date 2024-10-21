@@ -4,4 +4,5 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-async_std = { path = "../../modules/async_std", features = ["alloc", "paging", "irq", "multitask", "fs"] }
+async_std = { path = "../../modules/async_std", features = ["irq", "multitask"] }
+log = "0.4"

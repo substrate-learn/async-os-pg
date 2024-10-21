@@ -3,16 +3,18 @@
 
 use alloc::{string::String, vec::Vec, vec};
 
-extern crate async_axstd;
-extern crate async_executor;
+extern crate async_std;
+extern crate trampoline;
 
 
-#[async_axstd::async_main]
+#[async_std::async_main]
 async fn main() -> i32 {
-    async_axstd::println!("user_boot");
+    async_std::println!("user_boot");
     // 初始化文件系统
-    // async_executor::fs_init().await;
-    // async_executor::init_user(vec!["busybox".into()], &get_envs()).await.unwrap();
+    trampoline::fs_init().await;
+    let task = trampoline::init_user(vec!["hello".into()], &get_envs()).await.unwrap();
+    trampoline::wait(&task).await;
+    async_std::println!("task count {}", alloc::sync::Arc::strong_count(&task));
     0
 }
 

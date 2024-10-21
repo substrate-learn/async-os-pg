@@ -17,7 +17,7 @@ fp_simd = ["taskctx/fp_simd"]
 paging = ["axalloc", "page_table"]
 irq = []
 tls = ["alloc"]
-monolithic = ["paging", "dep:axfs_ramfs"]
+img = ["paging", "dep:axfs_ramfs"]
 default = []
 
 [dependencies]

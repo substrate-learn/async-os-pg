@@ -1,0 +1,29 @@
+[package]
+name = "arch_boot"
+version = "0.1.0"
+edition = "2021"
+authors = ["Youjie Zheng <zyj578335934@gmail.com>"]
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+keywords = ["Starry"]
+
+[features]
+smp = ["runtime/smp", "axhal/smp"]
+
+default = []
+
+[dependencies]
+cfg-if = "1.0"
+log = "0.4"
+axconfig = { git = "https://github.com/Starry-OS/axconfig.git" }
+axlog = { git = "https://github.com/Starry-OS/axlog.git" }
+
+runtime = { path = "../runtime" }
+trampoline = { path = "../trampoline" }
+axhal = { path = "../async_axhal", package = "async_axhal" }
+
+[build-dependencies]
+axconfig = { git = "https://github.com/Starry-OS/axconfig.git" }
+
+[target.'cfg(any(target_arch = "riscv32", target_arch = "riscv64"))'.dependencies]
+riscv = "0.10"
+sbi-rt = { version = "0.0.2", features = ["legacy"] }

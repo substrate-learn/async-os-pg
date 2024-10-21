@@ -4,7 +4,7 @@ mod dir;
 mod file;
 
 use crate::io;
-use async_io::{Read, Write};
+use async_io::Write;
 
 #[cfg(feature = "alloc")]
 use alloc::{string::String, vec::Vec};

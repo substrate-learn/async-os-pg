@@ -1,10 +1,10 @@
 
 pub async fn ax_sleep_until(deadline: crate::time::AxTimeValue) {
-    axtask::sleep_until(deadline).await;
+    trampoline::sleep_until(deadline).await;
 }
 
 pub async fn ax_yield_now() {
-    axtask::yield_now().await;
+    trampoline::yield_now().await;
 }
 
 cfg_task! {
@@ -14,7 +14,7 @@ cfg_task! {
 
     /// A handle to a task.
     pub struct AxTaskHandle {
-        inner: axtask::AxTaskRef,
+        inner: trampoline::TaskRef,
         id: u64,
     }
 
@@ -29,31 +29,31 @@ cfg_task! {
     ///
     /// A wait queue is used to store sleeping tasks waiting for a certain event
     /// to happen.
-    pub struct AxWaitQueueHandle(axsync::WaitQueue);
+    pub struct AxWaitQueueHandle(sync::WaitQueue);
 
     impl AxWaitQueueHandle {
         /// Creates a new empty wait queue.
         pub const fn new() -> Self {
-            Self(axsync::WaitQueue::new())
+            Self(sync::WaitQueue::new())
         }
     }
 
     impl Deref for AxWaitQueueHandle {
-        type Target = axsync::WaitQueue;
+        type Target = sync::WaitQueue;
         fn deref(&self) -> &Self::Target { 
             &self.0
         }
     }
 
     pub fn ax_current_task_id() -> u64 {
-        axtask::current().id().as_u64()
+        trampoline::current_task().id().as_u64()
     }
 
-    pub fn ax_spawn<F>(f: F, name: alloc::string::String, stack_size: usize) -> AxTaskHandle
+    pub fn ax_spawn<F>(f: F, name: alloc::string::String) -> AxTaskHandle
     where
         F: Future<Output = i32> + 'static,
     {
-        let inner = axtask::spawn_raw(move || f, name, stack_size);
+        let inner = trampoline::spawn_raw(move || f, name);
         AxTaskHandle {
             id: inner.id().as_u64(),
             inner,
@@ -61,7 +61,7 @@ cfg_task! {
     }
 
     pub fn ax_set_current_priority(prio: isize) -> crate::AxResult {
-        if axtask::set_priority(prio) {
+        if trampoline::set_priority(prio) {
             Ok(())
         } else {
             axerrno::ax_err!(
@@ -81,10 +81,10 @@ cfg_task! {
         }
     }
 
-    pub fn ax_wait_for_exit(task: AxTaskHandle) -> axtask::JoinFuture {
+    pub fn ax_wait_for_exit(task: AxTaskHandle) -> trampoline::JoinFuture {
         // task.inner.join()
         // axtask::join(&task.inner).await
-        axtask::join(&task.inner)
+        trampoline::join(&task.inner)
     }
     
     pub fn ax_wait_queue_wait(

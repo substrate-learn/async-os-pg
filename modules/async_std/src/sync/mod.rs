@@ -10,7 +10,7 @@ pub use alloc::sync::{Arc, Weak};
 
 #[cfg(feature = "multitask")]
 #[doc(cfg(feature = "multitask"))]
-pub use async_sync::{Mutex, MutexGuard, MutexGuardFuture};
+pub use sync::{Mutex, MutexGuard, MutexGuardFuture};
 
 #[cfg(not(feature = "multitask"))]
 #[doc(cfg(not(feature = "multitask")))]

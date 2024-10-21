@@ -10,4 +10,4 @@ authors = ["Yuekai Jia <equation618@gmail.com>"]
 default = []
 
 [dependencies]
-async_std = { path = "../../../modules/async_std", features = ["alloc", "paging", "irq", "multitask", "fs"] }
+async_std = { path = "../../../modules/async_std", features = ["irq", "multitask", "fs"] }

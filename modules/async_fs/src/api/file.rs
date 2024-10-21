@@ -1,8 +1,8 @@
 use async_io::Result;
 use core::fmt;
-
-use super::FileExt;
 use crate::fops;
+use super::FileExt;
+use alloc::boxed::Box;
 
 /// A structure representing a type of file with accessors for each file type.
 /// It is returned by [`Metadata::file_type`] method.
@@ -170,16 +170,19 @@ impl File {
     }
 }
 
+#[async_trait::async_trait]
 impl FileExt for File {
-    fn readable(&self) -> bool {
+    async fn readable(&self) -> bool {
         self.readable()
     }
 
-    fn writable(&self) -> bool {
+    /// whether the file is writable
+    async fn writable(&self) -> bool {
         self.writable()
     }
 
-    fn executable(&self) -> bool {
+    /// whether the file is executable
+    async fn executable(&self) -> bool {
         self.executable()
     }
 }
