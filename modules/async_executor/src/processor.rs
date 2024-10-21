@@ -1,4 +1,5 @@
-use crate::{stack_pool::StackPool, Executor, EXECUTORS, KERNEL_EXECUTOR};
+
+use crate::{stack_pool::StackPool, Executor, executor::{EXECUTORS, KERNEL_EXECUTOR}};
 use lazy_init::LazyInit;
 use spinlock::SpinNoIrq;
 use alloc::sync::Arc;
@@ -47,7 +48,7 @@ pub fn put_prev_stack(kstack: TaskStack) {
 }
 
 pub(crate) fn init() {
-    let kexecutor = Arc::new(Executor::new());
+    let kexecutor = Arc::new(Executor::new_init());
     KERNEL_EXECUTOR.init_by(kexecutor.clone());
     EXECUTORS.lock().insert(0, kexecutor.clone());
     let processor = Processor::new(kexecutor);

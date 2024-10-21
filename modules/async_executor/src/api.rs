@@ -1,7 +1,12 @@
+use alloc::sync::Arc;
+use axhal::{mem::VirtAddr, paging::MappingFlags, time::{current_time_nanos, NANOS_PER_MICROS, NANOS_PER_SEC}};
+
+use crate::{current_processor, Executor};
+
 use core::{future::Future, task::{Poll, Waker}};
 
-use crate::{Executor, task::{new_task, CurrentTask, TaskState}, AxTaskRef, Scheduler};
-use alloc::{string::String, boxed::Box, sync::Arc};
+use crate::{task::{new_task, CurrentTask, TaskState}, AxTaskRef, Scheduler};
+use alloc::{string::String, boxed::Box};
 
 /// Gets the current executor.
 ///
@@ -27,16 +32,11 @@ pub fn current() -> CurrentTask {
     CurrentTask::get()
 }
 
-#[no_mangle]
-pub extern "C" fn current_task_id() -> u64 {
-    CurrentTask::try_get().map_or(0, |curr| curr.id().as_u64())
-}
-
 /// Initializes the task scheduler (for the primary CPU).
 pub fn init_scheduler() {
     info!("Initialize scheduling...");
     crate::init();
-    axsync::init();
+    async_sync::init();
     info!("  use {} scheduler.", Scheduler::scheduler_name());
 }
 
@@ -56,8 +56,51 @@ pub fn exit(_exit_code: i32) -> ! {
 ///
 /// For example, advance scheduler states, checks timed events, etc.
 pub fn on_timer_tick() {
-    axsync::check_events();
-    crate::schedule::scheduler_timer_tick();
+    async_sync::check_events();
+    if let Some(curr) = crate::current_may_uninit() {
+        if !curr.is_idle() && current_executor().task_tick(curr.as_task_ref()) {
+            #[cfg(feature = "preempt")]
+            curr.set_preempt_pending(true);
+        }
+    }    
+}
+
+/// To deal with the page fault
+pub async fn handle_page_fault(addr: VirtAddr, flags: MappingFlags) {
+    let current_executor = current_executor();
+    if current_executor
+        .memory_set
+        .lock().await.
+        handle_page_fault(addr, flags).await
+        .is_ok() {
+        axhal::arch::flush_tlb(None);
+    }
+}
+
+/// 当从内核态到用户态时，统计对应进程的时间信息
+pub fn time_stat_from_kernel_to_user() {
+    let curr_task = current();
+    curr_task.time_stat_from_kernel_to_user(current_time_nanos() as usize);
+}
+
+#[no_mangle]
+/// 当从用户态到内核态时，统计对应进程的时间信息
+pub fn time_stat_from_user_to_kernel() {
+    let curr_task = current();
+    curr_task.time_stat_from_user_to_kernel(current_time_nanos() as usize);
+}
+
+/// 统计时间输出
+/// (用户态秒，用户态微秒，内核态秒，内核态微秒)
+pub fn time_stat_output() -> (usize, usize, usize, usize) {
+    let curr_task = current();
+    let (utime_ns, stime_ns) = curr_task.time_stat_output();
+    (
+        utime_ns / NANOS_PER_SEC as usize,
+        utime_ns / NANOS_PER_MICROS as usize,
+        stime_ns / NANOS_PER_SEC as usize,
+        stime_ns / NANOS_PER_MICROS as usize,
+    )
 }
 
 #[cfg(feature = "preempt")]
@@ -75,7 +118,14 @@ pub fn current_check_preempt_pending(tf: &axhal::arch::TrapFrame) {
                 curr.id_name(),
                 curr.can_preempt()
             );
-            crate::schedule::preempt_schedule(tf)
+            curr.set_preempt_pending(false);
+            curr.set_preempt_ctx(tf);
+            let new_kstack_top = crate::current_stack_top();
+            let ra = crate::run_idle as usize;
+            crate::task::CurrentTask::clean_current();
+            let waker = crate::waker::waker_from_task(curr.as_task_ref());
+            waker.wake();
+            unsafe { axhal::arch::jump(ra, new_kstack_top); }
         }
     }
 }
@@ -149,10 +199,10 @@ impl Future for SleepFuture {
         let deadline = self.deadline;
         if !self.has_sleep {
             self.get_mut().has_sleep = true;
-            axsync::set_alarm_wakeup(deadline, cx.waker().clone());
+            async_sync::set_alarm_wakeup(deadline, cx.waker().clone());
             Poll::Pending
         } else {
-            axsync::cancel_alarm(cx.waker());
+            async_sync::cancel_alarm(cx.waker());
             Poll::Ready(axhal::time::current_time() >= self.deadline)
         }
     }
@@ -171,13 +221,14 @@ pub fn sleep_until(deadline: axhal::time::TimeValue) -> SleepFuture{
 
 /// wake up task
 pub fn wakeup_task(task: AxTaskRef) {
-    crate::schedule::wakeup_task(task)
+    log::debug!("wakeup task: {}", task.id_name());
+    task.get_executor().put_prev_task(task, false);
 }
 
 /// Spawns a new task with the given parameters.
 ///
 /// Returns the task reference.
-pub fn spawn_raw<F, T>(f: F, name: String, _stack_size: usize) -> AxTaskRef
+pub fn spawn_raw<F, T>(f: F, name: String) -> AxTaskRef
 where
     F: FnOnce() -> T,
     T: Future<Output = i32> + 'static,
@@ -203,7 +254,7 @@ where
     F: FnOnce() -> T,
     T: Future<Output = i32> + 'static,
 {
-    spawn_raw(f, "".into(), axconfig::TASK_STACK_SIZE)
+    spawn_raw(f, "".into())
 }
 
 /// Current task is going to sleep, it will be woken up when the given task exits.
@@ -248,7 +299,7 @@ impl Future for JoinFuture {
 ///
 /// [CFS]: https://en.wikipedia.org/wiki/Completely_Fair_Scheduler
 pub fn set_priority(prio: isize) -> bool {
-    crate::schedule::set_current_priority(prio)
+    current_processor().current_executor().set_priority(current().as_task_ref(), prio)
 }
 
 pub fn dump_curr_backtrace() {
@@ -256,6 +307,3 @@ pub fn dump_curr_backtrace() {
     unimplemented!("dump_curr_backtrace")
 }
 
-// pub fn dump_task_backtrace(_task: AxTaskRef) {
-//     unimplemented!("dump_task_backtrace")
-// }
