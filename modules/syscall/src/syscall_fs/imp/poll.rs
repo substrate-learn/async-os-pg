@@ -1,6 +1,6 @@
-use axfs::api::FileIO;
+use async_fs::api::FileIO;
 use axhal::{mem::VirtAddr, time::current_ticks};
-use async_executor::current_executor;
+use executor::{current_executor, yield_now};
 use axsignal::signal_no::SignalNo;
 use bitflags::bitflags;
 extern crate alloc;
@@ -26,7 +26,7 @@ bitflags! {
 #[derive(Default)]
 /// file set used for ppoll
 struct PpollFdSet {
-    files: Vec<Arc<FileIO>>,
+    files: Vec<Arc<dyn FileIO>>,
     fds: Vec<usize>,
     shadow_bitset: ShadowBitset,
 }
@@ -112,26 +112,26 @@ impl ShadowBitset {
 /// expire_time：时间戳,用来记录是否超时
 ///
 /// 返回值：(usize, Vec<PollFd>) 第一个参数遵守 ppoll 系统调用的返回值约定,第二个参数为返回的 `PollFd` 列表
-fn ppoll(mut fds: Vec<PollFd>, expire_time: usize) -> (isize, Vec<PollFd>) {
+async fn ppoll(mut fds: Vec<PollFd>, expire_time: usize) -> (isize, Vec<PollFd>) {
     loop {
         // 满足事件要求而被触发的事件描述符数量
         let mut set: isize = 0;
         let process = current_executor();
         for poll_fd in &mut fds {
-            let fd_table = process.fd_manager.fd_table.lock();
+            let fd_table = process.fd_manager.fd_table.lock().await;
             if let Some(file) = fd_table[poll_fd.fd as usize].as_ref() {
                 poll_fd.revents = PollEvents::empty();
                 // let file = file.lock();
-                if file.in_exceptional_conditions() {
+                if file.in_exceptional_conditions().await {
                     poll_fd.revents |= PollEvents::ERR;
                 }
-                if file.is_hang_up() {
+                if file.is_hang_up().await {
                     poll_fd.revents |= PollEvents::HUP;
                 }
-                if poll_fd.events.contains(PollEvents::IN) && file.ready_to_read() {
+                if poll_fd.events.contains(PollEvents::IN) && file.ready_to_read().await {
                     poll_fd.revents |= PollEvents::IN;
                 }
-                if poll_fd.events.contains(PollEvents::OUT) && file.ready_to_write() {
+                if poll_fd.events.contains(PollEvents::OUT) && file.ready_to_write().await {
                     poll_fd.revents |= PollEvents::OUT;
                 }
                 // 如果返回事件不为空,代表有响应
@@ -151,9 +151,10 @@ fn ppoll(mut fds: Vec<PollFd>, expire_time: usize) -> (isize, Vec<PollFd>) {
             // 过期了,直接返回
             return (0, fds);
         }
-        yield_now_task();
+        // yield_now_task();
+        yield_now().await;
 
-        if process.have_signals().is_some() {
+        if process.have_signals().await.is_some() {
             // 有信号,此时停止处理,直接返回
             return (0, fds);
         }
@@ -169,7 +170,7 @@ fn ppoll(mut fds: Vec<PollFd>, expire_time: usize) -> (isize, Vec<PollFd>) {
 /// * `nfds` - usize
 /// * `timeout` - *const TimeSecs
 /// * `mask` - usize
-pub fn syscall_ppoll(args: [usize; 6]) -> SyscallResult {
+pub async fn syscall_ppoll(args: [usize; 6]) -> SyscallResult {
     let ufds = args[0] as *mut PollFd;
     let nfds = args[1];
     let timeout = args[2] as *const TimeSecs;
@@ -178,7 +179,7 @@ pub fn syscall_ppoll(args: [usize; 6]) -> SyscallResult {
 
     let start: VirtAddr = (ufds as usize).into();
     let end = start + nfds * core::mem::size_of::<PollFd>();
-    if process.manual_alloc_range_for_lazy(start, end).is_err() {
+    if process.manual_alloc_range_for_lazy(start, end).await.is_err() {
         return Err(SyscallError::EFAULT);
     }
 
@@ -191,7 +192,7 @@ pub fn syscall_ppoll(args: [usize; 6]) -> SyscallResult {
     }
 
     let expire_time = if timeout as usize != 0 {
-        if process.manual_alloc_type_for_lazy(timeout).is_err() {
+        if process.manual_alloc_type_for_lazy(timeout).await.is_err() {
             return Err(SyscallError::EFAULT);
         }
         current_ticks() as usize + unsafe { (*timeout).get_ticks() }
@@ -199,7 +200,7 @@ pub fn syscall_ppoll(args: [usize; 6]) -> SyscallResult {
         usize::MAX
     };
 
-    let (set, ret_fds) = ppoll(fds, expire_time);
+    let (set, ret_fds) = ppoll(fds, expire_time).await;
     // 将得到的fd存储到原先的指针中
     for (i, fd) in ret_fds.iter().enumerate() {
         unsafe {
@@ -248,7 +249,7 @@ pub fn syscall_poll(args: [usize; 6]) -> SyscallResult {
 }
 
 /// 根据给定的地址和长度新建一个fd set,包括文件描述符指针数组,文件描述符数值数组,以及一个bitset
-fn init_fd_set(addr: *mut usize, len: usize) -> Result<PpollFdSet, SyscallError> {
+async fn init_fd_set(addr: *mut usize, len: usize) -> Result<PpollFdSet, SyscallError> {
     let process = current_executor();
     if len >= process.fd_manager.get_limit() as usize {
         axlog::error!(
@@ -268,7 +269,7 @@ fn init_fd_set(addr: *mut usize, len: usize) -> Result<PpollFdSet, SyscallError>
 
     let start: VirtAddr = (addr as usize).into();
     let end = start + (len + 7) / 8;
-    if process.manual_alloc_range_for_lazy(start, end).is_err() {
+    if process.manual_alloc_range_for_lazy(start, end).await.is_err() {
         axlog::error!("[pselect6()] addr {addr:?} invalid");
         return Err(SyscallError::EFAULT);
     }
@@ -277,7 +278,7 @@ fn init_fd_set(addr: *mut usize, len: usize) -> Result<PpollFdSet, SyscallError>
     let mut files = Vec::new();
     for fd in 0..len {
         if shadow_bitset.check(fd) {
-            let fd_table = process.fd_manager.fd_table.lock();
+            let fd_table = process.fd_manager.fd_table.lock().await;
             if let Some(file) = fd_table[fd].as_ref() {
                 files.push(Arc::clone(file));
                 fds.push(fd);
@@ -316,22 +317,22 @@ pub fn syscall_select(mut args: [usize; 6]) -> SyscallResult {
 /// * `exceptfds` - *mut usize
 /// * `timeout` - *const TimeVal
 /// * `mask` - usize
-pub fn syscall_pselect6(args: [usize; 6]) -> SyscallResult {
+pub async fn syscall_pselect6(args: [usize; 6]) -> SyscallResult {
     let nfds = args[0];
     let readfds = args[1] as *mut usize;
     let writefds = args[2] as *mut usize;
     let exceptfds = args[3] as *mut usize;
     let timeout = args[4] as *const TimeVal;
     let _mask = args[5];
-    let (rfiles, rfds, mut rset) = match init_fd_set(readfds, nfds) {
+    let (rfiles, rfds, mut rset) = match init_fd_set(readfds, nfds).await {
         Ok(ans) => (ans.files, ans.fds, ans.shadow_bitset),
         Err(e) => return Err(e),
     };
-    let (wfiles, wfds, mut wset) = match init_fd_set(writefds, nfds) {
+    let (wfiles, wfds, mut wset) = match init_fd_set(writefds, nfds).await {
         Ok(ans) => (ans.files, ans.fds, ans.shadow_bitset),
         Err(e) => return Err(e),
     };
-    let (efiles, efds, mut eset) = match init_fd_set(exceptfds, nfds) {
+    let (efiles, efds, mut eset) = match init_fd_set(exceptfds, nfds).await {
         Ok(ans) => (ans.files, ans.fds, ans.shadow_bitset),
         Err(e) => return Err(e),
     };
@@ -340,9 +341,9 @@ pub fn syscall_pselect6(args: [usize; 6]) -> SyscallResult {
     let expire_time = if !timeout.is_null() {
         if process
             .memory_set
-            .lock()
-            .lock()
+            .lock().await
             .manual_alloc_type_for_lazy(timeout)
+            .await
             .is_err()
         {
             axlog::error!("[pselect6()] timeout addr {timeout:?} invalid");
@@ -366,12 +367,13 @@ pub fn syscall_pselect6(args: [usize; 6]) -> SyscallResult {
         // 因此先 yield 避免其他进程 starvation。
         //
         // 可见 iperf 测例。
-        yield_now_task();
+        // yield_now_task();
+        yield_now().await;
 
         let mut set = 0;
         if rset.valid() {
             for i in 0..rfds.len() {
-                if rfiles[i].ready_to_read() {
+                if rfiles[i].ready_to_read().await {
                     rset.set(rfds[i]);
                     set += 1;
                 }
@@ -379,7 +381,7 @@ pub fn syscall_pselect6(args: [usize; 6]) -> SyscallResult {
         }
         if wset.valid() {
             for i in 0..wfds.len() {
-                if wfiles[i].ready_to_write() {
+                if wfiles[i].ready_to_write().await {
                     wset.set(wfds[i]);
                     set += 1;
                 }
@@ -387,7 +389,7 @@ pub fn syscall_pselect6(args: [usize; 6]) -> SyscallResult {
         }
         if eset.valid() {
             for i in 0..efds.len() {
-                if efiles[i].in_exceptional_conditions() {
+                if efiles[i].in_exceptional_conditions().await {
                     eset.set(efds[i]);
                     set += 1;
                 }
@@ -401,7 +403,7 @@ pub fn syscall_pselect6(args: [usize; 6]) -> SyscallResult {
         }
         // TODO: fix this and use mask to ignore specific signal
 
-        if let Some(signalno) = process.have_signals() {
+        if let Some(signalno) = process.have_signals().await {
             if signalno == SignalNo::SIGKILL as usize {
                 return Err(SyscallError::EINTR);
             }

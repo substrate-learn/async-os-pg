@@ -12,6 +12,8 @@ mod fd_manager;
 mod stdio;
 pub mod link;
 mod loader;
+pub mod signal;
+
 pub mod flags;
 pub use loader::load_app;
 
@@ -23,4 +25,5 @@ pub use taskctx::TaskRef;
 pub use executor::*;
 pub use fd_manager::*;
 pub use stdio::{Stdin, Stdout, Stderr};
+pub use signal::*;
 

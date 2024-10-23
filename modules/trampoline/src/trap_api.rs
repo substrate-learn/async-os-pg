@@ -57,3 +57,14 @@ pub async fn handle_user_irq(_irq_num: usize, tf: &mut TrapFrame) {
         crate::current_check_user_preempt_pending(tf).await;
     }
 }
+
+/// Handle the syscall
+///
+/// # Arguments
+///
+/// * `syscall_id` - The id of the syscall
+///
+/// * `args` - The arguments of the syscall
+pub async fn handle_syscall(syscall_id: usize, args: [usize; 6]) -> isize {
+    crate::syscall::trap::handle_syscall(syscall_id, args).await
+}

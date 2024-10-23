@@ -1,4 +1,4 @@
-// mod signal;
+mod signal;
 
 // mod futex;
 
@@ -8,7 +8,7 @@ mod task;
 
 mod utils;
 
-// pub use signal::*;
+pub use signal::*;
 
 // pub use futex::*;
 

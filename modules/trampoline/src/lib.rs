@@ -2,6 +2,7 @@
 #![feature(naked_functions)]
 #![feature(asm_const)]
 #![feature(fn_align)]
+#![feature(stmt_expr_attributes)]
 #![feature(doc_cfg)]
 
 extern crate alloc;
@@ -14,6 +15,7 @@ mod fs_api;
 mod init_api;
 mod task_api;
 mod trap_api;
+mod syscall;
 
 use core::task::{Context, Poll};
 pub use fs_api::fs_init;
@@ -90,7 +92,6 @@ pub fn run_task(task: &TaskRef) {
                 assert!(Arc::strong_count(&task) == 1, "count {}", Arc::strong_count(&task));
                 async_axhal::misc::terminate();
             }
-            warn!("task {} count {}", task.id_name(), Arc::strong_count(&task));
             CurrentTask::clean_current();
         },
         Poll::Pending => {
@@ -98,7 +99,6 @@ pub fn run_task(task: &TaskRef) {
                 if tf.trap_status == TrapStatus::Done {
                     tf.kernel_sp = taskctx::current_stack_top();
                     tf.scause = 0;
-                    error!("return to user");
                     // 这里不能打开中断
                     async_axhal::arch::disable_irqs();
                     unsafe { tf.user_return(); }

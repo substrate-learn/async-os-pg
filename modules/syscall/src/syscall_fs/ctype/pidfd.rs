@@ -1,19 +1,21 @@
 extern crate alloc;
 use alloc::sync::Arc;
-use axfs::api::{FileIO, OpenFlags};
-use axprocess::{current_process, Process, PID2PC};
-use axsync::Mutex;
-
+use async_fs::api::{FileIO, OpenFlags};
+use async_io::SeekFrom;
+use executor::{current_executor, Executor, PID2PC};
+use sync::Mutex;
+use axerrno::{AxError, AxResult};
 use crate::{SyscallError, SyscallResult};
+use alloc::boxed::Box;
 
 pub struct PidFd {
     flags: Mutex<OpenFlags>,
-    process: Arc<Process>,
+    process: Arc<Executor>,
 }
 
 impl PidFd {
     /// Create a new PidFd
-    pub fn new(process: Arc<Process>, flags: OpenFlags) -> Self {
+    pub fn new(process: Arc<Executor>, flags: OpenFlags) -> Self {
         Self {
             flags: Mutex::new(flags),
             process,
@@ -21,69 +23,73 @@ impl PidFd {
     }
 
     pub fn pid(&self) -> u64 {
-        self.process.pid()
+        self.process.pid().as_u64()
     }
 }
-
+#[async_trait::async_trait]
 impl FileIO for PidFd {
-    fn read(&self, _buf: &mut [u8]) -> axerrno::AxResult<usize> {
+
+    async fn read(&self, _buf: &mut [u8]) -> AxResult<usize> {
         Err(axerrno::AxError::Unsupported)
     }
-    fn write(&self, _buf: &[u8]) -> axerrno::AxResult<usize> {
-        Err(axerrno::AxError::Unsupported)
+
+    async fn write(&self, _buf: &[u8]) -> AxResult<usize> {
+        Err(AxError::Unsupported) 
     }
-    fn seek(&self, _pos: axfs::api::SeekFrom) -> axerrno::AxResult<u64> {
-        Err(axerrno::AxError::Unsupported)
+    
+    async fn seek(&self, _pos: SeekFrom) -> AxResult<u64> {
+        Err(AxError::Unsupported) 
     }
+
     /// To check whether the target process is still alive
-    fn readable(&self) -> bool {
+    async fn readable(&self) -> bool {
         self.process.get_zombie()
     }
 
-    fn writable(&self) -> bool {
+    async fn writable(&self) -> bool {
         false
     }
 
-    fn executable(&self) -> bool {
+    async fn executable(&self) -> bool {
         false
     }
 
-    fn get_type(&self) -> axfs::api::FileIOType {
-        axfs::api::FileIOType::Other
+    async fn get_type(&self) -> async_fs::api::FileIOType {
+        async_fs::api::FileIOType::Other
     }
 
-    fn get_status(&self) -> OpenFlags {
-        self.flags.lock().clone()
+    async fn get_status(&self) -> OpenFlags {
+        self.flags.lock().await.clone()
     }
 
-    fn set_status(&self, flags: OpenFlags) -> bool {
-        *self.flags.lock() = flags;
+    async fn set_status(&self, flags: OpenFlags) -> bool {
+        *self.flags.lock().await = flags;
         true
     }
 
-    fn set_close_on_exec(&self, is_set: bool) -> bool {
+    async fn set_close_on_exec(&self, is_set: bool) -> bool {
         if is_set {
             // 设置close_on_exec位置
-            *self.flags.lock() |= OpenFlags::CLOEXEC;
+            *self.flags.lock().await |= OpenFlags::CLOEXEC;
         } else {
-            *self.flags.lock() &= !OpenFlags::CLOEXEC;
+            *self.flags.lock().await &= !OpenFlags::CLOEXEC;
         }
         true
     }
 }
 
-pub fn new_pidfd(pid: u64, mut flags: OpenFlags) -> SyscallResult {
+pub async fn new_pidfd(pid: u64, mut flags: OpenFlags) -> SyscallResult {
     // It is set to close the file descriptor on exec
     flags |= OpenFlags::CLOEXEC;
-    let pid2fd = PID2PC.lock();
+    let pid2fd = PID2PC.lock().await;
 
     let pidfd = pid2fd
         .get(&pid)
         .map(|target_process| PidFd::new(Arc::clone(target_process), flags))
         .ok_or(SyscallError::EINVAL)?;
     drop(pid2fd);
-    let process = current_process();
-    let mut fd_table = process.fd_manager.fd_table.lock();
+    let process = current_executor();
+    let mut fd_table = process.fd_manager.fd_table.lock().await;
     let fd = process
         .alloc_fd(&mut fd_table)
         .map_err(|_| SyscallError::EMFILE)?;

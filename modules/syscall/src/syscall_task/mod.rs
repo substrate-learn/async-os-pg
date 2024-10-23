@@ -14,7 +14,7 @@ pub async fn task_syscall(syscall_id: task_syscall_id::TaskSyscallId, args: [usi
     match syscall_id {
         EXIT => syscall_exit(args).await,
         // EXECVE => syscall_exec(args),
-        // CLONE => syscall_clone(args),
+        CLONE => syscall_clone(args).await,
         // CLONE3 => syscall_clone3(args),
         // NANO_SLEEP => syscall_sleep(args),
         // SCHED_YIELD => syscall_yield(),
@@ -31,7 +31,7 @@ pub async fn task_syscall(syscall_id: task_syscall_id::TaskSyscallId, args: [usi
 
         // SIGSUSPEND => syscall_sigsuspend(args),
 
-        // SIGACTION => syscall_sigaction(args),
+        SIGACTION => syscall_sigaction(args).await,
 
         // KILL => syscall_kill(args),
 
@@ -39,7 +39,7 @@ pub async fn task_syscall(syscall_id: task_syscall_id::TaskSyscallId, args: [usi
 
         // TGKILL => syscall_tgkill(args),
 
-        // SIGPROCMASK => syscall_sigprocmask(args),
+        SIGPROCMASK => syscall_sigprocmask(args).await,
         // SIGALTSTACK => syscall_sigaltstack(args),
         // SIGRETURN => syscall_sigreturn(),
         // EXIT_GROUP => syscall_exit(args),

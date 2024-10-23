@@ -2,7 +2,7 @@
 extern crate alloc;
 use crate::syscall_fs::solve_path;
 // use crate::syscall_net::Socket;
-use crate::{SyscallError, SyscallResult};
+use crate::{IoVec, SyscallError, SyscallResult};
 use alloc::sync::Arc;
 use axerrno::AxError;
 use async_fs::api::{FileIOType, OpenFlags};
@@ -186,31 +186,31 @@ pub async fn syscall_write(args: [usize; 6]) -> SyscallResult {
 //     Ok(read_len)
 // }
 
-// /// 从同一个文件描述符写入多个字符串
-// /// # Arguments
-// /// * `fd`: usize, 要写入文件的文件描述符。
-// /// * `iov`: *mut IoVec, 一个缓存区,用于存放要写入的内容。
-// /// * `iov_cnt`: usize, 要写入的字节数。
-// pub fn syscall_writev(args: [usize; 6]) -> SyscallResult {
-//     let fd = args[0];
-//     let iov = args[1] as *mut IoVec;
-//     let iov_cnt = args[2];
-//     let mut write_len = 0;
-//     // 似乎要判断iov是否分配,但是懒了,反正能过测例
-//     for i in 0..iov_cnt {
-//         let io: &IoVec = unsafe { &(*iov.add(i)) };
-//         if io.base.is_null() || io.len == 0 {
-//             continue;
-//         }
-//         let temp_args = [fd, io.base as usize, io.len, 0, 0, 0];
-//         match syscall_write(temp_args) {
-//             len if len.is_ok() => write_len += len.unwrap(),
+/// 从同一个文件描述符写入多个字符串
+/// # Arguments
+/// * `fd`: usize, 要写入文件的文件描述符。
+/// * `iov`: *mut IoVec, 一个缓存区,用于存放要写入的内容。
+/// * `iov_cnt`: usize, 要写入的字节数。
+pub async fn syscall_writev(args: [usize; 6]) -> SyscallResult {
+    let fd = args[0];
+    let iov = args[1] as *mut IoVec;
+    let iov_cnt = args[2];
+    let mut write_len = 0;
+    // 似乎要判断iov是否分配,但是懒了,反正能过测例
+    for i in 0..iov_cnt {
+        let io: &IoVec = unsafe { &(*iov.add(i)) };
+        if io.base.is_null() || io.len == 0 {
+            continue;
+        }
+        let temp_args = [fd, io.base as usize, io.len, 0, 0, 0];
+        match syscall_write(temp_args).await {
+            len if len.is_ok() => write_len += len.unwrap(),
 
-//             err => return err,
-//         }
-//     }
-//     Ok(write_len)
-// }
+            err => return err,
+        }
+    }
+    Ok(write_len)
+}
 
 // /// 功能:创建管道；
 // /// # Arguments

@@ -7,7 +7,7 @@ mod ctl;
 mod io;
 // mod link;
 // mod mount;
-// mod poll;
+mod poll;
 mod stat;
 use axerrno::AxError;
 use executor::link::{deal_with_path, FilePath};
@@ -17,7 +17,7 @@ pub use ctl::*;
 pub use io::*;
 // pub use link::*;
 // pub use mount::*;
-// pub use poll::*;
+pub use poll::*;
 pub use stat::*;
 
 use crate::SyscallError;

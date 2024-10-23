@@ -1,3 +1,6 @@
+[patch."https://github.com/Starry-OS/axhal.git".async_axhal]
+path = "modules/async_axhal"
+
 [profile.dev]
 lto = true
 
@@ -14,7 +17,7 @@ members = [
     "modules/async_io", "modules/async_std", "modules/async_fs", "modules/async_vfs", "modules/async_api", 
     "modules/async_mem", "modules/taskctx", "modules/trampoline", "modules/executor", "modules/sync", "modules/runtime", 
     "modules/arch_boot", 
-    "modules/syscall", 
+    # "modules/syscall", 
     "modules/feat"
 ]
 resolver = "2"

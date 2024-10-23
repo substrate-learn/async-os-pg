@@ -170,7 +170,6 @@ impl TimeStat {
         self.pending_timer_signal = true;
     }
 
-    #[allow(unused)]
     /// # Return
     /// If the timer has triggered, return the signal number and reset the timer
     /// Otherwise, return None

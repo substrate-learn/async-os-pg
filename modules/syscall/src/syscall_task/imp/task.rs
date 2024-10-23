@@ -1,7 +1,9 @@
+use async_fs::api::OpenFlags;
+use axsignal::signal_no::SignalNo;
 // use async_fs::api::OpenFlags;
 // use axhal::time::current_time;
 use executor::{
-    current_task, current_executor, 
+    current_executor, current_task, flags::CloneFlags 
     // flags::{CloneFlags, WaitStatus}, link::{raw_ptr_to_ref_str, AT_FDCWD}
     // set_child_tid,
     // signal::send_signal_to_process,
@@ -11,11 +13,11 @@ use executor::{
 // use core::{future::poll_fn, sync::atomic::AtomicI32};
 // use core::time::Duration;
 use crate::{
-    // syscall_fs::{
-    //     // ctype::pidfd::{new_pidfd, PidFd},
-    //     // imp::solve_path,
-    // },
-    SyscallResult,
+    syscall_fs::{
+        ctype::pidfd::{new_pidfd, PidFd},
+        // imp::solve_path,
+    },
+    SyscallError, SyscallResult
     // CloneArgs, RLimit, SyscallError, TimeSecs, WaitFlags, RLIMIT_AS, RLIMIT_NOFILE,
     // RLIMIT_STACK,
 };
@@ -39,7 +41,7 @@ extern crate alloc;
 pub async fn syscall_exit(args: [usize; 6]) -> SyscallResult {
     let exit_code = args[0] as i32;
     info!("exit: exit_code = {}", exit_code);
-    executor::exit().await;
+    executor::exit(exit_code).await;
     Ok(exit_code as isize)
     // let cases = ["fcanf", "fgetwc_buffering", "lat_pipe"];
     // let mut test_filter = TEST_FILTER.lock();
@@ -139,74 +141,74 @@ pub async fn syscall_exit(args: [usize; 6]) -> SyscallResult {
 //     Ok(argc as isize)
 // }
 
-// /// # Arguments for riscv
-// /// * `flags` - usize
-// /// * `user_stack` - usize
-// /// * `ptid` - usize
-// /// * `tls` - usize
-// /// * `ctid` - usize
-// ///
-// /// # Arguments for x86_64
-// /// * `flags` - usize
-// /// * `user_stack` - usize
-// /// * `ptid` - usize
-// /// * `ctid` - usize
-// /// * `tls` - usize
-// pub fn syscall_clone(args: [usize; 6]) -> SyscallResult {
-//     let flags = args[0];
-//     let user_stack = args[1];
-//     let ptid = args[2];
-//     let tls: usize;
-//     let ctid: usize;
-//     #[cfg(target_arch = "x86_64")]
-//     {
-//         ctid = args[3];
-//         tls = args[4];
-//     }
-//     #[cfg(not(target_arch = "x86_64"))]
-//     {
-//         tls = args[3];
-//         ctid = args[4];
-//     }
+/// # Arguments for riscv
+/// * `flags` - usize
+/// * `user_stack` - usize
+/// * `ptid` - usize
+/// * `tls` - usize
+/// * `ctid` - usize
+///
+/// # Arguments for x86_64
+/// * `flags` - usize
+/// * `user_stack` - usize
+/// * `ptid` - usize
+/// * `ctid` - usize
+/// * `tls` - usize
+pub async fn syscall_clone(args: [usize; 6]) -> SyscallResult {
+    let flags = args[0];
+    let user_stack = args[1];
+    let ptid = args[2];
+    let tls: usize;
+    let ctid: usize;
+    #[cfg(target_arch = "x86_64")]
+    {
+        ctid = args[3];
+        tls = args[4];
+    }
+    #[cfg(not(target_arch = "x86_64"))]
+    {
+        tls = args[3];
+        ctid = args[4];
+    }
 
-//     let stack = if user_stack == 0 {
-//         None
-//     } else {
-//         Some(user_stack)
-//     };
-//     let curr_process = current_executor();
-//     // let sig_child = if SignalNo::from(flags & 0x3f) == SignalNo::SIGCHLD {
-//     //     Some(SignalNo::SIGCHLD)
-//     // } else {
-//     //     None
-//     // };
+    let stack = if user_stack == 0 {
+        None
+    } else {
+        Some(user_stack)
+    };
+    let curr_process = current_executor();
+    let sig_child = if SignalNo::from(flags & 0x3f) == SignalNo::SIGCHLD {
+        Some(SignalNo::SIGCHLD)
+    } else {
+        None
+    };
 
-//     let clone_flags = CloneFlags::from_bits((flags & !0x3f) as u32).unwrap();
+    let clone_flags = CloneFlags::from_bits((flags & !0x3f) as u32).unwrap();
 
-//     if clone_flags.contains(CloneFlags::CLONE_SIGHAND)
-//         && !clone_flags.contains(CloneFlags::CLONE_VM)
-//     {
-//         // Error when CLONE_SIGHAND was specified in the flags mask, but CLONE_VM was not.
-//         return Err(SyscallError::EINVAL);
-//     }
+    if clone_flags.contains(CloneFlags::CLONE_SIGHAND)
+        && !clone_flags.contains(CloneFlags::CLONE_VM)
+    {
+        // Error when CLONE_SIGHAND was specified in the flags mask, but CLONE_VM was not.
+        return Err(SyscallError::EINVAL);
+    }
 
-//     if let Ok(new_task_id) = curr_process.clone_task(flags, stack, ptid, tls, ctid, sig_child) {
-//         if clone_flags.contains(CloneFlags::CLONE_PIDFD) {
-//             if clone_flags.contains(CloneFlags::CLONE_PARENT_SETTID) {
-//                 return Err(SyscallError::EINVAL);
-//             }
-//             if curr_process.manual_alloc_for_lazy(ptid.into()).is_ok() {
-//                 unsafe {
-//                     *(ptid as *mut i32) = new_pidfd(new_task_id, OpenFlags::empty())? as i32;
-//                 }
-//             }
-//         }
+    if let Ok(new_task_id) = curr_process.clone_task(flags, stack, ptid, tls, ctid, sig_child).await {
+        if clone_flags.contains(CloneFlags::CLONE_PIDFD) {
+            if clone_flags.contains(CloneFlags::CLONE_PARENT_SETTID) {
+                return Err(SyscallError::EINVAL);
+            }
+            if curr_process.manual_alloc_for_lazy(ptid.into()).await.is_ok() {
+                unsafe {
+                    *(ptid as *mut i32) = new_pidfd(new_task_id, OpenFlags::empty()).await? as i32;
+                }
+            }
+        }
 
-//         Ok(new_task_id as isize)
-//     } else {
-//         Err(SyscallError::ENOMEM)
-//     }
-// }
+        Ok(new_task_id as isize)
+    } else {
+        Err(SyscallError::ENOMEM)
+    }
+}
 
 // /// 创建子进程的新函数，所有信息保存在 CloneArgs
 // /// # Arguments

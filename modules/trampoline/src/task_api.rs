@@ -1,6 +1,7 @@
 use core::{future::poll_fn, task::Poll};
 
 pub use executor::*;
+use crate::syscall::trap::{handle_page_fault, MappingFlags};
 use taskctx::TrapStatus;
 use riscv::register::scause::{Trap, Exception};
 #[cfg(feature = "preempt")]
@@ -103,39 +104,46 @@ pub async fn user_task_top() -> i32 {
         let curr = current_task();
         let mut tf = curr.utrap_frame().unwrap();
         if tf.trap_status == TrapStatus::Blocked {
-            log::error!("handle user trap");
             let trap = tf.get_scause_type();
+            let stval = tf.stval;
             match trap {
                 Trap::Interrupt(_interrupt) => {
-                    warn!("user task interrupt here");
                     crate::handle_user_irq(tf.get_scause_code(), &mut tf).await;
-                    warn!("user task interrupt done");
                 },
                 Trap::Exception(Exception::UserEnvCall) => {
-                    warn!("user ecall");
                     async_axhal::arch::enable_irqs();
                     tf.sepc += 4;
-                    let result = syscall::trap::handle_syscall(
+                    let result = crate::syscall::trap::handle_syscall(
                         tf.regs.a7,
                         [
                             tf.regs.a0, tf.regs.a1, tf.regs.a2, tf.regs.a3, tf.regs.a4, tf.regs.a5,
                         ],
                     ).await;
-                    // 单独处理 exit 系统调用
-                    if tf.regs.a7 == syscall::TaskSyscallId::EXIT as usize {
-                        return tf.regs.a0 as i32;
+                    // 判断任务是否退出
+                    if curr.is_exited() {
+                        return curr.get_exit_code();
                     }
-                    if -result == syscall::SyscallError::ERESTART as isize {
+                    if -result == crate::syscall::SyscallError::ERESTART as isize {
                         // Restart the syscall
                         tf.rewind_pc();
                     } else {
                         tf.regs.a0 = result as usize;
                     }
                     async_axhal::arch::disable_irqs();
-                    warn!("user ecall end");
                 }
-                Trap::Exception(_exception) => {
-                    // handle exception
+                Trap::Exception(Exception::InstructionPageFault) => {
+                    handle_page_fault(stval.into(), MappingFlags::USER | MappingFlags::EXECUTE).await;
+                }
+
+                Trap::Exception(Exception::LoadPageFault) => {
+                    handle_page_fault(stval.into(), MappingFlags::USER | MappingFlags::READ).await;
+                }
+
+                Trap::Exception(Exception::StorePageFault) => {
+                    handle_page_fault(stval.into(), MappingFlags::USER | MappingFlags::WRITE).await;
+                }
+
+                _ => {
                     panic!(
                         "Unhandled trap {:?} @ {:#x}:\n{:#x?}",
                         tf.get_scause_type(),

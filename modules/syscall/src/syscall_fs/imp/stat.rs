@@ -1,15 +1,15 @@
 //! 获取文件系统状态信息
 //!
 
-use crate::{SyscallError, SyscallResult};
+use crate::{syscall_fs::solve_path, SyscallError, SyscallResult};
 use async_fs::api::Kstat;
 use axlog::{debug, info};
 use executor::{
-    current_executor,
+    current_executor, link::raw_ptr_to_ref_str,
     // link::{raw_ptr_to_ref_str, FilePath, AT_FDCWD},
 };
 
-// use crate::syscall_fs::ctype::mount::get_stat_in_fs;
+use crate::syscall_fs::ctype::mount::get_stat_in_fs;
 
 /// 实现 stat 系列系统调用
 /// # Arguments
@@ -46,48 +46,48 @@ pub async fn syscall_fstat(args: [usize; 6]) -> SyscallResult {
     }
 }
 
-// /// 获取文件状态信息，但是给出的是目录 fd 和相对路径。
-// /// # Arguments
-// /// * `dir_fd` - usize
-// /// * `path` - *const u8
-// /// * `kst` - *mut Kstat
-// pub fn syscall_fstatat(args: [usize; 6]) -> SyscallResult {
-//     let dir_fd = args[0];
-//     let path = args[1] as *const u8;
-//     let kst = args[2] as *mut Kstat;
-//     let file_path = if let Ok(file_path) = solve_path(dir_fd, Some(path), false) {
-//         // error!("test {:?}", file_path);
-//         file_path
-//     } else {
-//         // x86 下应用会调用 newfstatat(1, "", {st_mode=S_IFCHR|0620, st_rdev=makedev(0x88, 0xe), ...}, AT_EMPTY_PATH) = 0
-//         // 去尝试检查 STDOUT 的属性。这里暂时先特判，以后再改成真正的 stdout 的属性
-//         let path = unsafe { raw_ptr_to_ref_str(path) };
-//         if path.is_empty() && dir_fd == 1 {
-//             unsafe {
-//                 (*kst).st_mode = 0o20000 | 0o220u32;
-//                 (*kst).st_ino = 1;
-//                 (*kst).st_nlink = 1;
-//             }
-//             return Ok(0);
-//         }
-//         panic!("Wrong path at syscall_fstatat: {}(dir_fd={})", path, dir_fd);
-//     };
-//     info!("path : {}", file_path.path());
-//     if !axfs::api::path_exists(file_path.path()) {
-//         return Err(SyscallError::ENOENT);
-//     }
-//     match get_stat_in_fs(&file_path) {
-//         Ok(stat) => unsafe {
-//             *kst = stat;
-//             info!("stat: {:?}", stat);
-//             Ok(0)
-//         },
-//         Err(error_no) => {
-//             debug!("get stat error: {:?}", error_no);
-//             Err(error_no)
-//         }
-//     }
-// }
+/// 获取文件状态信息，但是给出的是目录 fd 和相对路径。
+/// # Arguments
+/// * `dir_fd` - usize
+/// * `path` - *const u8
+/// * `kst` - *mut Kstat
+pub async fn syscall_fstatat(args: [usize; 6]) -> SyscallResult {
+    let dir_fd = args[0];
+    let path = args[1] as *const u8;
+    let kst = args[2] as *mut Kstat;
+    let file_path = if let Ok(file_path) = solve_path(dir_fd, Some(path), false).await {
+        // error!("test {:?}", file_path);
+        file_path
+    } else {
+        // x86 下应用会调用 newfstatat(1, "", {st_mode=S_IFCHR|0620, st_rdev=makedev(0x88, 0xe), ...}, AT_EMPTY_PATH) = 0
+        // 去尝试检查 STDOUT 的属性。这里暂时先特判，以后再改成真正的 stdout 的属性
+        let path = unsafe { raw_ptr_to_ref_str(path) };
+        if path.is_empty() && dir_fd == 1 {
+            unsafe {
+                (*kst).st_mode = 0o20000 | 0o220u32;
+                (*kst).st_ino = 1;
+                (*kst).st_nlink = 1;
+            }
+            return Ok(0);
+        }
+        panic!("Wrong path at syscall_fstatat: {}(dir_fd={})", path, dir_fd);
+    };
+    info!("path : {}", file_path.path());
+    if !async_fs::api::path_exists(file_path.path()).await {
+        return Err(SyscallError::ENOENT);
+    }
+    match get_stat_in_fs(&file_path).await {
+        Ok(stat) => unsafe {
+            *kst = stat;
+            info!("stat: {:?}", stat);
+            Ok(0)
+        },
+        Err(error_no) => {
+            debug!("get stat error: {:?}", error_no);
+            Err(error_no)
+        }
+    }
+}
 
 // /// 获取文件状态信息
 // /// # Arguments

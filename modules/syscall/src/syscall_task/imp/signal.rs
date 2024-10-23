@@ -3,7 +3,7 @@
 
 use axhal::cpu::this_cpu_id;
 use axlog::{debug, info};
-use axprocess::{current_process, current_task, yield_now_task};
+use executor::{current_executor, current_task, yield_now};
 use axsignal::signal_no::SignalNo;
 use axsignal::{action::SigAction, ucontext::SignalStack};
 
@@ -13,7 +13,7 @@ use crate::{SigMaskFlag, SyscallError, SyscallResult, SIGSET_SIZE_IN_BYTE};
 /// * `signum` - usize
 /// * `action` - *const SigAction
 /// * `old_action` - *mut SigAction
-pub fn syscall_sigaction(args: [usize; 6]) -> SyscallResult {
+pub async fn syscall_sigaction(args: [usize; 6]) -> SyscallResult {
     let signum = args[0];
     let action = args[1] as *const SigAction;
     let old_action = args[2] as *mut SigAction;
@@ -26,12 +26,12 @@ pub fn syscall_sigaction(args: [usize; 6]) -> SyscallResult {
         return Err(SyscallError::EPERM);
     }
 
-    let current_process = current_process();
-    let mut signal_modules = current_process.signal_modules.lock();
+    let current_process = current_executor();
+    let mut signal_modules = current_process.signal_modules.lock().await;
     let signal_module = signal_modules
         .get_mut(&current_task().id().as_u64())
         .unwrap();
-    let mut signal_handler = signal_module.signal_handler.lock();
+    let mut signal_handler = signal_module.signal_handler.lock().await;
     let old_address = old_action as usize;
 
     if old_address != 0 {
@@ -39,6 +39,7 @@ pub fn syscall_sigaction(args: [usize; 6]) -> SyscallResult {
         // 此时要检查old_address是否在某一个段中
         if current_process
             .manual_alloc_for_lazy(old_address.into())
+            .await
             .is_err()
         {
             // 无法分配
@@ -55,6 +56,7 @@ pub fn syscall_sigaction(args: [usize; 6]) -> SyscallResult {
     if new_address != 0 {
         if current_process
             .manual_alloc_for_lazy(new_address.into())
+            .await
             .is_err()
         {
             // 无法分配
@@ -69,16 +71,17 @@ pub fn syscall_sigaction(args: [usize; 6]) -> SyscallResult {
 /// TODO: 这里实现的似乎和文档有出入，应该有 BUG
 /// # Arguments
 /// * `mask` - *const usize
-pub fn syscall_sigsuspend(args: [usize; 6]) -> SyscallResult {
+pub async fn syscall_sigsuspend(args: [usize; 6]) -> SyscallResult {
     let mask = args[0] as *const usize;
-    let process = current_process();
+    let process = current_executor();
     if process
         .manual_alloc_for_lazy((mask as usize).into())
+        .await
         .is_err()
     {
         return Err(SyscallError::EFAULT);
     }
-    let mut signal_modules = process.signal_modules.lock();
+    let mut signal_modules = process.signal_modules.lock().await;
 
     let signal_module = signal_modules
         .get_mut(&current_task().id().as_u64())
@@ -91,7 +94,7 @@ pub fn syscall_sigsuspend(args: [usize; 6]) -> SyscallResult {
     signal_module.signal_set.mask = unsafe { *mask };
     drop(signal_modules);
     loop {
-        let mut signal_modules = process.signal_modules.lock();
+        let mut signal_modules = process.signal_modules.lock().await;
         let signal_module = signal_modules
             .get_mut(&current_task().id().as_u64())
             .unwrap();
@@ -99,8 +102,9 @@ pub fn syscall_sigsuspend(args: [usize; 6]) -> SyscallResult {
         if signal_module.signal_set.find_signal().is_none() {
             // 记得释放锁
             drop(signal_modules);
-            yield_now_task();
-            if process.have_signals().is_some() {
+            yield_now().await;
+            // yield_now_task();
+            if process.have_signals().await.is_some() {
                 return Err(SyscallError::EINTR);
             }
         } else {
@@ -111,17 +115,17 @@ pub fn syscall_sigsuspend(args: [usize; 6]) -> SyscallResult {
     Err(SyscallError::EINTR)
 }
 
-/// Note: It can only be called by the signal processing function during signal processing.
-pub fn syscall_sigreturn() -> SyscallResult {
-    Ok(axprocess::signal::signal_return())
-}
+// /// Note: It can only be called by the signal processing function during signal processing.
+// pub fn syscall_sigreturn() -> SyscallResult {
+//     Ok(executor::signal::signal_return())
+// }
 
 /// # Arguments
 /// * `flag` - SigMaskFlag
 /// * `new_mask` - *const usize
 /// * `old_mask` - *mut usize
 /// * `sigsetsize` - usize, specifies the size in bytes of the signal sets in set and oldset, which is equal to sizeof(kernel_sigset_t)
-pub fn syscall_sigprocmask(args: [usize; 6]) -> SyscallResult {
+pub async fn syscall_sigprocmask(args: [usize; 6]) -> SyscallResult {
     let flag = SigMaskFlag::from(args[0]);
     let new_mask = args[1] as *const usize;
     let old_mask = args[2] as *mut usize;
@@ -131,10 +135,11 @@ pub fn syscall_sigprocmask(args: [usize; 6]) -> SyscallResult {
         return Err(SyscallError::EINVAL);
     }
 
-    let current_process = current_process();
+    let current_process = current_executor();
     if old_mask as usize != 0
         && current_process
             .manual_alloc_for_lazy((old_mask as usize).into())
+            .await
             .is_err()
     {
         return Err(SyscallError::EFAULT);
@@ -142,12 +147,13 @@ pub fn syscall_sigprocmask(args: [usize; 6]) -> SyscallResult {
     if new_mask as usize != 0
         && current_process
             .manual_alloc_for_lazy((new_mask as usize).into())
+            .await
             .is_err()
     {
         return Err(SyscallError::EPERM);
     }
 
-    let mut signal_modules = current_process.signal_modules.lock();
+    let mut signal_modules = current_process.signal_modules.lock().await;
     let signal_module = signal_modules
         .get_mut(&current_task().id().as_u64())
         .unwrap();
@@ -174,89 +180,89 @@ pub fn syscall_sigprocmask(args: [usize; 6]) -> SyscallResult {
     Ok(0)
 }
 
-/// 向pid指定的进程发送信号
-///
-/// 由于处理信号的单位在线程上，所以若进程中有多个线程，则会发送给主线程
-/// # Arguments
-/// * `pid` - isize
-/// * `signum` - isize
-pub fn syscall_kill(args: [usize; 6]) -> SyscallResult {
-    let pid = args[0] as isize;
-    let signum = args[1] as isize;
-    if pid > 0 && signum > 0 {
-        // 不关心是否成功
-        let _ = axprocess::signal::send_signal_to_process(pid, signum, None);
-        Ok(0)
-    } else if pid == 0 {
-        Err(SyscallError::ESRCH)
-    } else {
-        Err(SyscallError::EINVAL)
-    }
-}
+// /// 向pid指定的进程发送信号
+// ///
+// /// 由于处理信号的单位在线程上，所以若进程中有多个线程，则会发送给主线程
+// /// # Arguments
+// /// * `pid` - isize
+// /// * `signum` - isize
+// pub fn syscall_kill(args: [usize; 6]) -> SyscallResult {
+//     let pid = args[0] as isize;
+//     let signum = args[1] as isize;
+//     if pid > 0 && signum > 0 {
+//         // 不关心是否成功
+//         let _ = axprocess::signal::send_signal_to_process(pid, signum, None);
+//         Ok(0)
+//     } else if pid == 0 {
+//         Err(SyscallError::ESRCH)
+//     } else {
+//         Err(SyscallError::EINVAL)
+//     }
+// }
 
-/// 向tid指定的线程发送信号
-/// # Arguments
-/// * `tid` - isize
-/// * `signum` - isize
-pub fn syscall_tkill(args: [usize; 6]) -> SyscallResult {
-    let tid = args[0] as isize;
-    let signum = args[1] as isize;
-    debug!(
-        "cpu: {}, send singal: {} to: {}",
-        this_cpu_id(),
-        signum,
-        tid
-    );
-    if tid > 0 && signum > 0 {
-        let _ = axprocess::signal::send_signal_to_thread(tid, signum);
-        Ok(0)
-    } else {
-        Err(SyscallError::EINVAL)
-    }
-}
+// /// 向tid指定的线程发送信号
+// /// # Arguments
+// /// * `tid` - isize
+// /// * `signum` - isize
+// pub fn syscall_tkill(args: [usize; 6]) -> SyscallResult {
+//     let tid = args[0] as isize;
+//     let signum = args[1] as isize;
+//     debug!(
+//         "cpu: {}, send singal: {} to: {}",
+//         this_cpu_id(),
+//         signum,
+//         tid
+//     );
+//     if tid > 0 && signum > 0 {
+//         let _ = axprocess::signal::send_signal_to_thread(tid, signum);
+//         Ok(0)
+//     } else {
+//         Err(SyscallError::EINVAL)
+//     }
+// }
 
-/// 向tid指定的线程组发送信号
-pub fn syscall_tgkill(args: [usize; 6]) -> SyscallResult {
-    let tgid = args[0] as isize;
-    let tid = args[1] as isize;
-    let signum = args[2] as isize;
-    debug!(
-        "cpu: {}, send singal: {} to: {}",
-        this_cpu_id(),
-        signum,
-        tid
-    );
-    if tgid > 0 && tid > 0 && signum > 0 {
-        let _ = axprocess::signal::send_signal_to_thread(tid, signum);
-        Ok(0)
-    } else {
-        Err(SyscallError::EINVAL)
-    }
-}
+// /// 向tid指定的线程组发送信号
+// pub fn syscall_tgkill(args: [usize; 6]) -> SyscallResult {
+//     let tgid = args[0] as isize;
+//     let tid = args[1] as isize;
+//     let signum = args[2] as isize;
+//     debug!(
+//         "cpu: {}, send singal: {} to: {}",
+//         this_cpu_id(),
+//         signum,
+//         tid
+//     );
+//     if tgid > 0 && tid > 0 && signum > 0 {
+//         let _ = axprocess::signal::send_signal_to_thread(tid, signum);
+//         Ok(0)
+//     } else {
+//         Err(SyscallError::EINVAL)
+//     }
+// }
 
-/// Set and get the alternate signal stack
-pub fn syscall_sigaltstack(args: [usize; 6]) -> SyscallResult {
-    let current_process = current_process();
-    let ss = args[0] as *const SignalStack;
-    let old_ss = args[1] as *mut SignalStack;
-    if !ss.is_null() && current_process.manual_alloc_type_for_lazy(ss).is_err() {
-        return Err(SyscallError::EFAULT);
-    }
-    let task_id = current_task().id().as_u64();
-    let mut signal_modules = current_process.signal_modules.lock();
+// /// Set and get the alternate signal stack
+// pub fn syscall_sigaltstack(args: [usize; 6]) -> SyscallResult {
+//     let current_process = current_process();
+//     let ss = args[0] as *const SignalStack;
+//     let old_ss = args[1] as *mut SignalStack;
+//     if !ss.is_null() && current_process.manual_alloc_type_for_lazy(ss).is_err() {
+//         return Err(SyscallError::EFAULT);
+//     }
+//     let task_id = current_task().id().as_u64();
+//     let mut signal_modules = current_process.signal_modules.lock();
 
-    if !old_ss.is_null() {
-        if current_process.manual_alloc_type_for_lazy(old_ss).is_err() {
-            return Err(SyscallError::EFAULT);
-        }
-        unsafe {
-            *old_ss = signal_modules.get(&task_id).unwrap().alternate_stack;
-        }
-    }
+//     if !old_ss.is_null() {
+//         if current_process.manual_alloc_type_for_lazy(old_ss).is_err() {
+//             return Err(SyscallError::EFAULT);
+//         }
+//         unsafe {
+//             *old_ss = signal_modules.get(&task_id).unwrap().alternate_stack;
+//         }
+//     }
 
-    if !ss.is_null() {
-        signal_modules.get_mut(&task_id).unwrap().alternate_stack = unsafe { *ss };
-    }
+//     if !ss.is_null() {
+//         signal_modules.get_mut(&task_id).unwrap().alternate_stack = unsafe { *ss };
+//     }
 
-    Ok(0)
-}
+//     Ok(0)
+// }

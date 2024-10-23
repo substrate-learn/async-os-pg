@@ -1,5 +1,5 @@
 use taskctx::CurrentTask;
-use crate::{CurrentExecutor, TID2TASK};
+use crate::{flags::WaitStatus, CurrentExecutor, KERNEL_EXECUTOR_ID, TID2TASK};
 use core::{future::Future, task::Poll};
 use alloc::{boxed::Box, string::String, sync::Arc};
 use taskctx::{BaseScheduler, Task, TaskInner, TaskRef, TaskState};
@@ -26,15 +26,20 @@ where
 {
     let scheduler = current_executor().get_scheduler();
     let task = Arc::new(Task::new(
-        TaskInner::new(name, scheduler.clone(), Box::pin(f()))
+        TaskInner::new(name, KERNEL_EXECUTOR_ID, scheduler.clone(), Box::pin(f()))
     ));
     scheduler.lock().add_task(task.clone());    
     task
 }
 
-pub async fn exit() {
+pub async fn exit(exit_code: i32) {
     let curr = current_task();
     TID2TASK.lock().await.remove(&curr.id().as_u64());
+    curr.set_exit_code(exit_code);
+    curr.set_state(TaskState::Exited);
+    let current_executor = current_executor();
+    current_executor.set_exit_code(exit_code);
+    current_executor.set_zombie(true);
 }
 
 /// Spawns a new task with the default parameters.
@@ -173,4 +178,65 @@ impl Future for JoinFuture {
 /// [CFS]: https://en.wikipedia.org/wiki/Completely_Fair_Scheduler
 pub fn set_priority(prio: isize) -> bool {
     current_executor().set_priority(current_task().as_task_ref(), prio)
+}
+
+
+/// 在当前进程找对应的子进程，并等待子进程结束
+/// 若找到了则返回对应的pid
+/// 否则返回一个状态
+///
+/// # Safety
+///
+/// 保证传入的 ptr 是有效的
+pub async unsafe fn wait_pid(pid: i32, exit_code_ptr: *mut i32) -> Result<u64, WaitStatus> {
+    // 获取当前进程
+    let curr_process = current_executor();
+    let mut exit_task_id: usize = 0;
+    let mut answer_id: u64 = 0;
+    let mut answer_status = WaitStatus::NotExist;
+    for (index, child) in curr_process.children.lock().await.iter().enumerate() {
+        if pid <= 0 {
+            if pid == 0 {
+                axlog::warn!("Don't support for process group.");
+            }
+            // 任意一个进程结束都可以的
+            answer_status = WaitStatus::Running;
+            if let Some(exit_code) = child.get_code_if_exit() {
+                answer_status = WaitStatus::Exited;
+                info!("wait pid _{}_ with code _{}_", child.pid().as_u64(), exit_code);
+                exit_task_id = index;
+                if !exit_code_ptr.is_null() {
+                    unsafe {
+                        // 因为没有切换页表，所以可以直接填写
+                        *exit_code_ptr = exit_code << 8;
+                    }
+                }
+                answer_id = child.pid().as_u64();
+                break;
+            }
+        } else if child.pid().as_u64() == pid as u64 {
+            // 找到了对应的进程
+            if let Some(exit_code) = child.get_code_if_exit() {
+                answer_status = WaitStatus::Exited;
+                info!("wait pid _{}_ with code _{:?}_", child.pid().as_u64(), exit_code);
+                exit_task_id = index;
+                if !exit_code_ptr.is_null() {
+                    unsafe {
+                        *exit_code_ptr = exit_code << 8;
+                        // 用于WEXITSTATUS设置编码
+                    }
+                }
+                answer_id = child.pid().as_u64();
+            } else {
+                answer_status = WaitStatus::Running;
+            }
+            break;
+        }
+    }
+    // 若进程成功结束，需要将其从父进程的children中删除
+    if answer_status == WaitStatus::Exited {
+        curr_process.children.lock().await.remove(exit_task_id);
+        return Ok(answer_id);
+    }
+    Err(answer_status)
 }

@@ -46,8 +46,8 @@ cfg_if::cfg_if! {
 }
 
 /// 这里不对任务的状态进行修改，在调用 waker.wake() 之前对任务状态进行修改
-pub(crate) fn wakeup_task(task: TaskRef) {
-    log::debug!("wakeup task {}, count {}", task.id_name(), Arc::strong_count(&task));
+pub fn wakeup_task(task: TaskRef) {
+    // log::debug!("wakeup task {}, count {}", task.id_name(), Arc::strong_count(&task));
     task.clone()
         .scheduler.lock()
         .lock()

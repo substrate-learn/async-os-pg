@@ -234,18 +234,13 @@ impl MemorySet {
 
     /// Find a free area with given start virtual address and size. Return the start address of the area.
     pub fn find_free_area(&self, hint: VirtAddr, size: usize) -> Option<VirtAddr> {
-        log::warn!("memory addr: {:#X?}", self as *const _);
         let mut last_end = hint.max(axconfig::USER_MEMORY_START.into()).as_usize();
-        log::error!("owned_mem.is_empty {}", self.owned_mem.is_empty());
 
         // TODO: performance optimization
         let mut segments: Vec<_> = self
             .owned_mem
             .iter()
-            .map(|(start, mem)| {
-                log::error!("start: {:#X?}, end: {:#X?}", *start, *start + mem.size());
-                (*start, *start + mem.size())
-        })
+            .map(|(start, mem)| (*start, *start + mem.size()) )
             .collect();
         segments.extend(
             self.attached_mem
@@ -256,7 +251,6 @@ impl MemorySet {
         segments.sort();
 
         for (start, end) in segments {
-            log::error!("start: {:#X?}, end: {:#X?}", start, end);
             if last_end + size <= start {
                 return Some(last_end.into());
             }
@@ -427,7 +421,6 @@ impl MemorySet {
 
     /// 将用户分配的页面从页表中直接解映射，内核分配的页面依然保留
     pub fn unmap_user_areas(&mut self) {
-        log::error!("memory set drop");
         for (_, area) in self.owned_mem.iter_mut() {
             area.dealloc(&mut self.page_table);
         }

@@ -9,7 +9,7 @@ use taskctx::{BaseScheduler, TaskRef};
 use spinlock::SpinNoIrq;
 use sync::Mutex;
 use taskctx::{Scheduler, TaskId};
-use crate::{fd_manager::{FdManager, FdTable}, stdio::{Stderr, Stdin, Stdout}};
+use crate::{current_task, fd_manager::{FdManager, FdTable}, stdio::{Stderr, Stdin, Stdout}, SignalModule};
 
 const FD_LIMIT_ORIGIN: usize = 1025;
 pub const KERNEL_EXECUTOR_ID: u64 = 1;
@@ -40,6 +40,9 @@ pub struct Executor {
     pub blocked_by_vfork: Mutex<bool>,
     /// 该进程可执行文件所在的路径
     pub file_path: Mutex<String>,
+    /// 信号处理模块
+    /// 第一维代表TaskID，第二维代表对应的信号处理模块
+    pub signal_modules: Mutex<BTreeMap<u64, SignalModule>>,
 }
 
 unsafe impl Sync for Executor {}
@@ -72,6 +75,7 @@ impl Executor {
             heap_top: AtomicU64::new(heap_bottom),
             blocked_by_vfork: Mutex::new(false),
             file_path: Mutex::new(String::new()),
+            signal_modules: Mutex::new(BTreeMap::new()),
         }
     }
 
@@ -227,18 +231,22 @@ impl Executor {
 
     #[inline]
     pub async fn run(self: Arc<Self>) -> i32 {
-        crate::CurrentExecutor::clean_current();
-        unsafe { crate::CurrentExecutor::init_current(self.clone()) };
+        use core::{future::poll_fn, task::Poll};
         let page_table_token = self.memory_set.lock().await.page_table_token();
-        if page_table_token != 0 {
-            unsafe {
-                axhal::arch::write_page_table_root0(page_table_token.into());
-                #[cfg(target_arch = "riscv64")]
-                riscv::register::sstatus::set_sum();
-                axhal::arch::flush_tlb(None);
-            };
-        }
-        0
+        poll_fn(|cx| {
+            crate::CurrentExecutor::clean_current();
+            unsafe { crate::CurrentExecutor::init_current(self.clone()) };
+            if page_table_token != 0 {
+                unsafe {
+                    axhal::arch::write_page_table_root0(page_table_token.into());
+                    #[cfg(target_arch = "riscv64")]
+                    riscv::register::sstatus::set_sum();
+                    axhal::arch::flush_tlb(None);
+                };
+            }
+            cx.waker().wake_by_ref();
+            Poll::Pending
+        }).await
     }
 
 }
@@ -289,4 +297,32 @@ impl Executor {
         Ok(fd_table.len() - 1)
     }
 
+    /// 查询当前任务是否存在未决信号
+    pub async fn have_signals(&self) -> Option<usize> {
+        let current_task = current_task();
+        self.signal_modules
+            .lock()
+            .await
+            .get(&current_task.id().as_u64())
+            .unwrap()
+            .signal_set
+            .find_signal()
+            .map_or_else(|| current_task.check_pending_signal(), Some)
+    }
+
+    /// Judge whether the signal request the interrupted syscall to restart
+    ///
+    /// # Return
+    /// - None: There is no siganl need to be delivered
+    /// - Some(true): The interrupted syscall should be restarted
+    /// - Some(false): The interrupted syscall should not be restarted
+    pub async fn have_restart_signals(&self) -> Option<bool> {
+        let current_task = current_task();
+        self.signal_modules
+            .lock().await
+            .get(&current_task.id().as_u64())
+            .unwrap()
+            .have_restart_signal()
+            .await
+    }
 }
