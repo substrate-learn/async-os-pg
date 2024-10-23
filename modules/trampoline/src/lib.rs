@@ -4,6 +4,7 @@
 #![feature(fn_align)]
 #![feature(stmt_expr_attributes)]
 #![feature(doc_cfg)]
+#![cfg_attr(test, feature(noop_waker))]
 
 extern crate alloc;
 #[macro_use]

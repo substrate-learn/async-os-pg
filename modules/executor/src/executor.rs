@@ -43,6 +43,8 @@ pub struct Executor {
     /// 信号处理模块
     /// 第一维代表TaskID，第二维代表对应的信号处理模块
     pub signal_modules: Mutex<BTreeMap<u64, SignalModule>>,
+    /// 栈大小
+    pub stack_size: AtomicU64,
 }
 
 unsafe impl Sync for Executor {}
@@ -76,6 +78,7 @@ impl Executor {
             blocked_by_vfork: Mutex::new(false),
             file_path: Mutex::new(String::new()),
             signal_modules: Mutex::new(BTreeMap::new()),
+            stack_size: AtomicU64::new(axconfig::TASK_STACK_SIZE as _),
         }
     }
 
@@ -164,6 +167,16 @@ impl Executor {
     /// 设置 Executor（进程）的堆底
     pub fn set_heap_bottom(&self, bottom: u64) {
         self.heap_bottom.store(bottom, Ordering::Release)
+    }
+
+    /// set stack size
+    pub fn set_stack_limit(&self, limit: u64) {
+        self.stack_size.store(limit, Ordering::Release)
+    }
+
+    /// get stack size
+    pub fn get_stack_limit(&self) -> u64 {
+        self.stack_size.load(Ordering::Acquire)
     }
 
     /// 设置 Executor（进程）是否被 vfork 阻塞
