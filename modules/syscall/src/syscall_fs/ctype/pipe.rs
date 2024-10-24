@@ -1,11 +1,11 @@
-use axfs::api::{FileIO, FileIOType, OpenFlags};
+use async_fs::api::{FileIO, FileIOType, OpenFlags};
 extern crate alloc;
-use alloc::sync::{Arc, Weak};
+use alloc::{sync::{Arc, Weak}, boxed::Box};
 use axerrno::AxResult;
 use axlog::{info, trace};
 
-use axsync::Mutex;
-use axtask::yield_now;
+use sync::Mutex;
+use executor::yield_now;
 
 /// IPC pipe
 pub struct Pipe {
@@ -38,8 +38,8 @@ impl Pipe {
         }
     }
     /// is it set non block?
-    pub fn is_non_block(&self) -> bool {
-        self.flags.lock().contains(OpenFlags::NON_BLOCK)
+    pub async fn is_non_block(&self) -> bool {
+        self.flags.lock().await.contains(OpenFlags::NON_BLOCK)
     }
 }
 
@@ -114,27 +114,28 @@ impl PipeRingBuffer {
 }
 
 /// Return (read_end, write_end)
-pub fn make_pipe(flags: OpenFlags) -> (Arc<Pipe>, Arc<Pipe>) {
+pub async fn make_pipe(flags: OpenFlags) -> (Arc<Pipe>, Arc<Pipe>) {
     trace!("kernel: make_pipe");
     let buffer = Arc::new(Mutex::new(PipeRingBuffer::new()));
     let read_end = Arc::new(Pipe::read_end_with_buffer(buffer.clone(), flags));
     let write_end = Arc::new(Pipe::write_end_with_buffer(buffer.clone(), flags));
-    buffer.lock().set_write_end(&write_end);
+    buffer.lock().await.set_write_end(&write_end);
     (read_end, write_end)
 }
 
+#[async_trait::async_trait]
 impl FileIO for Pipe {
-    fn read(&self, buf: &mut [u8]) -> AxResult<usize> {
-        assert!(self.readable());
+    async fn read(&self, buf: &mut [u8]) -> AxResult<usize> {
+        assert!(self.readable().await);
         let want_to_read = buf.len();
         let mut buf_iter = buf.iter_mut();
         let mut already_read = 0usize;
         loop {
-            let mut ring_buffer = self.buffer.lock();
+            let mut ring_buffer = self.buffer.lock().await;
             let loop_read = ring_buffer.available_read();
             info!("kernel: Pipe::read: loop_read = {}", loop_read);
             if loop_read == 0 {
-                if axprocess::current_process().have_signals().is_some() {
+                if executor::current_executor().have_signals().await.is_some() {
                     return Err(axerrno::AxError::Interrupted);
                 }
                 info!(
@@ -145,12 +146,12 @@ impl FileIO for Pipe {
                     return Ok(already_read);
                 }
 
-                if self.is_non_block() {
-                    yield_now();
+                if self.is_non_block().await {
+                    yield_now().await;
                     return Err(axerrno::AxError::WouldBlock);
                 }
                 drop(ring_buffer);
-                yield_now();
+                yield_now().await;
                 continue;
             }
             for _ in 0..loop_read {
@@ -169,23 +170,23 @@ impl FileIO for Pipe {
         }
     }
 
-    fn write(&self, buf: &[u8]) -> AxResult<usize> {
+    async fn write(&self, buf: &[u8]) -> AxResult<usize> {
         info!("kernel: Pipe::write");
-        assert!(self.writable());
+        assert!(self.writable().await);
         let want_to_write = buf.len();
         let mut buf_iter = buf.iter();
         let mut already_write = 0usize;
         loop {
-            let mut ring_buffer = self.buffer.lock();
+            let mut ring_buffer = self.buffer.lock().await;
             let loop_write = ring_buffer.available_write();
             if loop_write == 0 {
                 drop(ring_buffer);
 
-                if Arc::strong_count(&self.buffer) < 2 || self.is_non_block() {
+                if Arc::strong_count(&self.buffer) < 2 || self.is_non_block().await {
                     // 读入端关闭
                     return Ok(already_write);
                 }
-                yield_now();
+                yield_now().await;
                 continue;
             }
 
@@ -206,24 +207,24 @@ impl FileIO for Pipe {
         }
     }
 
-    fn executable(&self) -> bool {
+    async fn executable(&self) -> bool {
         false
     }
-    fn readable(&self) -> bool {
+    async fn readable(&self) -> bool {
         self.readable
     }
-    fn writable(&self) -> bool {
+    async fn writable(&self) -> bool {
         self.writable
     }
 
-    fn get_type(&self) -> FileIOType {
+    async fn get_type(&self) -> FileIOType {
         FileIOType::Pipe
     }
 
-    fn is_hang_up(&self) -> bool {
+    async fn is_hang_up(&self) -> bool {
         if self.readable {
-            if self.buffer.lock().available_read() == 0
-                && self.buffer.lock().all_write_ends_closed()
+            if self.buffer.lock().await.available_read() == 0
+                && self.buffer.lock().await.all_write_ends_closed()
             {
                 // 写入端关闭且缓冲区读完了
                 true
@@ -236,33 +237,33 @@ impl FileIO for Pipe {
         }
     }
 
-    fn ready_to_read(&self) -> bool {
-        self.readable && self.buffer.lock().available_read() != 0
+    async fn ready_to_read(&self) -> bool {
+        self.readable && self.buffer.lock().await.available_read() != 0
     }
 
-    fn ready_to_write(&self) -> bool {
-        self.writable && self.buffer.lock().available_write() != 0
+    async fn ready_to_write(&self) -> bool {
+        self.writable && self.buffer.lock().await.available_write() != 0
     }
 
     /// 设置文件状态
-    fn set_status(&self, flags: OpenFlags) -> bool {
-        *self.flags.lock() = flags;
+    async fn set_status(&self, flags: OpenFlags) -> bool {
+        *self.flags.lock().await = flags;
         true
     }
 
     /// 获取文件状态
-    fn get_status(&self) -> OpenFlags {
-        *self.flags.lock()
+    async fn get_status(&self) -> OpenFlags {
+        *self.flags.lock().await
     }
 
     /// 设置 close_on_exec 位
     /// 设置成功返回false
-    fn set_close_on_exec(&self, is_set: bool) -> bool {
+    async fn set_close_on_exec(&self, is_set: bool) -> bool {
         if is_set {
             // 设置close_on_exec位置
-            *self.flags.lock() |= OpenFlags::CLOEXEC;
+            *self.flags.lock().await |= OpenFlags::CLOEXEC;
         } else {
-            *self.flags.lock() &= !OpenFlags::CLOEXEC;
+            *self.flags.lock().await &= !OpenFlags::CLOEXEC;
         }
         true
     }

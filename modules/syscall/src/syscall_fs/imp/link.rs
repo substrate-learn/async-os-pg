@@ -5,7 +5,7 @@ extern crate alloc;
 
 use crate::{SyscallError, SyscallResult};
 use axlog::debug;
-use async_executor::link::{create_link, remove_link, FilePath};
+use executor::link::{create_link, remove_link, FilePath};
 
 use super::solve_path;
 
@@ -29,8 +29,8 @@ pub async fn sys_linkat(args: [usize; 6]) -> SyscallResult {
     let new_path = args[3] as *const u8;
     let _flags = args[4];
 
-    let old_path = solve_path(old_dir_fd, Some(old_path), false)?;
-    let new_path = solve_path(new_dir_fd, Some(new_path), false)?;
+    let old_path = solve_path(old_dir_fd, Some(old_path), false).await?;
+    let new_path = solve_path(new_dir_fd, Some(new_path), false).await?;
     if create_link(&old_path, &new_path).await {
         Ok(0)
     } else {
@@ -61,7 +61,7 @@ pub async fn syscall_unlinkat(args: [usize; 6]) -> SyscallResult {
     let dir_fd = args[0];
     let path = args[1] as *const u8;
     let flags = args[2];
-    let path = solve_path(dir_fd, Some(path), false)?;
+    let path = solve_path(dir_fd, Some(path), false).await?;
 
     if path.start_with(&FilePath::new("/proc").await.unwrap()) {
         return Ok(-1);
@@ -69,13 +69,13 @@ pub async fn syscall_unlinkat(args: [usize; 6]) -> SyscallResult {
 
     // remove dir
     if flags == AT_REMOVEDIR {
-        if let Err(e) = axfs::api::remove_dir(path.path()).await {
+        if let Err(e) = async_fs::api::remove_dir(path.path()).await {
             debug!("rmdir error: {:?}", e);
             return Err(SyscallError::EINVAL);
         }
         return Ok(0);
     }
-    let metadata = axfs::api::metadata(path.path()).await.unwrap();
+    let metadata = async_fs::api::metadata(path.path()).await.unwrap();
     if metadata.is_dir() {
         return Err(SyscallError::EISDIR);
     }

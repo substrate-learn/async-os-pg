@@ -137,7 +137,7 @@ pub extern "C" fn rust_main(cpu_id: usize, dtb: usize) {
     info!("Initialize platform devices...");
     axhal::platform_init();
 
-    trampoline::init();
+    trampoline::init_trampoline();
 
     #[cfg(feature = "irq")]
     {

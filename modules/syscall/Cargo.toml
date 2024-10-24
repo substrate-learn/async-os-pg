@@ -43,7 +43,7 @@ async-trait = "0.1.83"
 
 
 async_fs = { path = "../async_fs" }
-axhal = { path = "../async_axhal", package = "async_axhal" }
+async_axhal = { path = "../async_axhal" }
 executor = { path = "../executor" }
 sync = { path = "../sync", package = "sync" }
 async_mem = { path = "../async_mem" }

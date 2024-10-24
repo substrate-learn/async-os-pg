@@ -30,51 +30,51 @@ pub async fn fs_syscall(syscall_id: fs_syscall_id::FsSyscallId, args: [usize; 6]
         READ => syscall_read(args).await,
         WRITE => syscall_write(args).await,
         GETCWD => syscall_getcwd(args).await,
-        // PIPE2 => syscall_pipe2(args),
-        // DUP => syscall_dup(args),
+        PIPE2 => syscall_pipe2(args).await,
+        DUP => syscall_dup(args).await,
         DUP3 => syscall_dup3(args).await,
-        // MKDIRAT => syscall_mkdirat(args),
-        // CHDIR => syscall_chdir(args),
-        // GETDENTS64 => syscall_getdents64(args),
-        // MOUNT => syscall_mount(args),
-        // UNMOUNT => syscall_umount(args),
+        MKDIRAT => syscall_mkdirat(args).await,
+        CHDIR => syscall_chdir(args).await,
+        GETDENTS64 => syscall_getdents64(args).await,
+        MOUNT => syscall_mount(args).await,
+        UNMOUNT => syscall_umount(args).await,
         FSTAT => syscall_fstat(args).await,
-        // RENAMEAT | RENAMEAT2 => syscall_renameat2(args),
-        // READV => syscall_readv(args),
+        RENAMEAT | RENAMEAT2 => syscall_renameat2(args).await,
+        READV => syscall_readv(args).await,
         WRITEV => syscall_writev(args).await,
         FCNTL64 => syscall_fcntl64(args).await,
         FSTATAT => syscall_fstatat(args).await,
-        // STATFS => syscall_statfs(args),
-        // FCHMODAT => syscall_fchmodat(args),
-        // FACCESSAT => syscall_faccessat(args),
-        // LSEEK => syscall_lseek(args),
-        // PREAD64 => syscall_pread64(args),
-        // PREADLINKAT => syscall_readlinkat(args),
-        // PWRITE64 => syscall_pwrite64(args),
-        // SENDFILE64 => syscall_sendfile64(args),
-        // FSYNC => Ok(0),
-        // FTRUNCATE64 => {
-        //     syscall_ftruncate64(args)
-        //     // 0
-        // }
+        STATFS => syscall_statfs(args).await,
+        FCHMODAT => syscall_fchmodat(args).await,
+        FACCESSAT => syscall_faccessat(args).await,
+        LSEEK => syscall_lseek(args).await,
+        PREAD64 => syscall_pread64(args).await,
+        PREADLINKAT => syscall_readlinkat(args).await,
+        PWRITE64 => syscall_pwrite64(args).await,
+        SENDFILE64 => syscall_sendfile64(args).await,
+        FSYNC => Ok(0),
+        FTRUNCATE64 => {
+            syscall_ftruncate64(args).await
+            // 0
+        }
         IOCTL => syscall_ioctl(args).await,
-        // // 不做处理即可
-        // SYNC => Ok(0),
-        // COPYFILERANGE => syscall_copyfilerange(args),
-        // LINKAT => sys_linkat(args),
-        // UNLINKAT => syscall_unlinkat(args),
-        // SYMLINKAT => Ok(0),
-        // UTIMENSAT => syscall_utimensat(args),
-        // EPOLL_CREATE => syscall_epoll_create1(args),
-        // EPOLL_CTL => syscall_epoll_ctl(args),
-        // EPOLL_PWAIT => syscall_epoll_pwait(args),
+        // 不做处理即可
+        SYNC => Ok(0),
+        COPYFILERANGE => syscall_copyfilerange(args).await,
+        LINKAT => sys_linkat(args).await,
+        UNLINKAT => syscall_unlinkat(args).await,
+        SYMLINKAT => Ok(0),
+        UTIMENSAT => syscall_utimensat(args).await,
+        EPOLL_CREATE => syscall_epoll_create1(args).await,
+        EPOLL_CTL => syscall_epoll_ctl(args).await,
+        EPOLL_PWAIT => syscall_epoll_pwait(args).await,
         PPOLL => syscall_ppoll(args).await,
-        // PSELECT6 => syscall_pselect6(args),
-        // STATX => syscall_statx(args),
-        // PIDFD_OPEN => syscall_pidfd_open(args),
-        // FCHOWN => Ok(0),
-        // #[cfg(not(target_arch = "x86_64"))]
-        // EVENTFD => syscall_eventfd(args),
+        PSELECT6 => syscall_pselect6(args).await,
+        STATX => syscall_statx(args).await,
+        PIDFD_OPEN => syscall_pidfd_open(args).await,
+        FCHOWN => Ok(0),
+        #[cfg(not(target_arch = "x86_64"))]
+        EVENTFD => syscall_eventfd(args).await,
         // #[cfg(target_arch = "x86_64")]
         // // eventfd syscall in x86_64 does not support flags, use 0 instead
         // EVENTFD => syscall_eventfd([args[0], 0, 0, 0, 0, 0]),
@@ -120,6 +120,7 @@ pub async fn fs_syscall(syscall_id: fs_syscall_id::FsSyscallId, args: [usize; 6]
         // CHOWN => Ok(0),
         // #[cfg(target_arch = "x86_64")]
         // MKNOD => Ok(0),
+        #[allow(unused)]
         _ => unimplemented!("syscall_id: {:?}", syscall_id),
     }
 }

@@ -1,13 +1,12 @@
 use core::{future::poll_fn, task::Poll};
 
 pub use executor::*;
-use crate::syscall::trap::{handle_page_fault, MappingFlags};
+use syscall::trap::{handle_page_fault, MappingFlags};
 use taskctx::TrapStatus;
 use riscv::register::scause::{Trap, Exception};
 #[cfg(feature = "preempt")]
 use crate::{trampoline, TrapFrame};
 
-use crate::KERNEL_EXECUTOR;
 pub fn turn_to_kernel_executor() {
     CurrentExecutor::clean_current();
     unsafe { CurrentExecutor::init_current(KERNEL_EXECUTOR.clone()) };
@@ -113,7 +112,7 @@ pub async fn user_task_top() -> i32 {
                 Trap::Exception(Exception::UserEnvCall) => {
                     async_axhal::arch::enable_irqs();
                     tf.sepc += 4;
-                    let result = crate::syscall::trap::handle_syscall(
+                    let result = syscall::trap::handle_syscall(
                         tf.regs.a7,
                         [
                             tf.regs.a0, tf.regs.a1, tf.regs.a2, tf.regs.a3, tf.regs.a4, tf.regs.a5,
@@ -123,7 +122,7 @@ pub async fn user_task_top() -> i32 {
                     if curr.is_exited() {
                         return curr.get_exit_code();
                     }
-                    if -result == crate::syscall::SyscallError::ERESTART as isize {
+                    if -result == syscall::SyscallError::ERESTART as isize {
                         // Restart the syscall
                         tf.rewind_pc();
                     } else {

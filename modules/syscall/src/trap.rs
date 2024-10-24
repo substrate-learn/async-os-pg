@@ -1,9 +1,9 @@
 //! Define the trap handler for the whole kernel
-use axhal::time::current_time_nanos;
-pub use axhal::{mem::VirtAddr, paging::MappingFlags};
+use async_axhal::time::current_time_nanos;
+pub use async_axhal::{mem::VirtAddr, paging::MappingFlags};
 use executor::{current_executor, current_task};
 
-use crate::syscall::syscall;
+use super::syscall::syscall;
 
 fn time_stat_from_kernel_to_user() {
     current_task().time_stat_from_kernel_to_user(current_time_nanos() as usize);
@@ -20,14 +20,14 @@ fn time_stat_from_user_to_kernel() {
 /// * `irq_num` - The number of the interrupt
 ///
 /// * `from_user` - Whether the interrupt is from user space
-pub fn handle_irq(irq_num: usize, from_user: bool) {
+pub fn handle_irq(_irq_num: usize, from_user: bool) {
     // trap进来，统计时间信息
     // 只有当trap是来自用户态才进行统计
     if from_user {
         time_stat_from_user_to_kernel();
     }
     #[cfg(feature = "irq")]
-    axhal::irq::dispatch_irq(irq_num);
+    async_axhal::irq::dispatch_irq(_irq_num);
     if from_user {
         time_stat_from_kernel_to_user();
     }
@@ -62,7 +62,7 @@ pub async fn handle_page_fault(addr: VirtAddr, flags: MappingFlags) {
         .lock().await.
         handle_page_fault(addr, flags).await
         .is_ok() {
-        axhal::arch::flush_tlb(None);
+        async_axhal::arch::flush_tlb(None);
     }
     time_stat_from_kernel_to_user();
 }

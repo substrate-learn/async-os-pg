@@ -1,5 +1,4 @@
-use async_axhal::{mem::VirtAddr, paging::MappingFlags};
-use executor::{current_executor, current_task_may_uninit};
+use executor::current_task_may_uninit;
 use taskctx::{TrapFrame, TrapStatus};
 
 
@@ -18,18 +17,6 @@ pub fn on_timer_tick() {
             curr.set_preempt_pending(true);
         }
     }    
-}
-
-/// To deal with the page fault
-pub async fn handle_page_fault(addr: VirtAddr, flags: MappingFlags) {
-    let current_executor = current_executor();
-    if current_executor
-        .memory_set
-        .lock().await.
-        handle_page_fault(addr, flags).await
-        .is_ok() {
-        async_axhal::arch::flush_tlb(None);
-    }
 }
 
 pub fn handle_irq(_irq_num: usize, tf: &mut TrapFrame) {
@@ -58,13 +45,4 @@ pub async fn handle_user_irq(_irq_num: usize, tf: &mut TrapFrame) {
     }
 }
 
-/// Handle the syscall
-///
-/// # Arguments
-///
-/// * `syscall_id` - The id of the syscall
-///
-/// * `args` - The arguments of the syscall
-pub async fn handle_syscall(syscall_id: usize, args: [usize; 6]) -> isize {
-    crate::syscall::trap::handle_syscall(syscall_id, args).await
-}
+

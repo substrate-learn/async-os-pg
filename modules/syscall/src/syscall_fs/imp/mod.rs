@@ -2,21 +2,21 @@
 extern crate alloc;
 
 mod ctl;
-// mod epoll;
-// mod eventfd;
+mod epoll;
+mod eventfd;
 mod io;
-// mod link;
-// mod mount;
+mod link;
+mod mount;
 mod poll;
 mod stat;
 use axerrno::AxError;
 use executor::link::{deal_with_path, FilePath};
 pub use ctl::*;
-// pub use epoll::*;
-// pub use eventfd::*;
+pub use epoll::*;
+pub use eventfd::*;
 pub use io::*;
-// pub use link::*;
-// pub use mount::*;
+pub use link::*;
+pub use mount::*;
 pub use poll::*;
 pub use stat::*;
 

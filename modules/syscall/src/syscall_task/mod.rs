@@ -13,11 +13,11 @@ pub use imp::*;
 pub async fn task_syscall(syscall_id: task_syscall_id::TaskSyscallId, args: [usize; 6]) -> SyscallResult {
     match syscall_id {
         EXIT => syscall_exit(args).await,
-        // EXECVE => syscall_exec(args),
+        EXECVE => syscall_exec(args).await,
         CLONE => syscall_clone(args).await,
-        // CLONE3 => syscall_clone3(args),
-        // NANO_SLEEP => syscall_sleep(args),
-        // SCHED_YIELD => syscall_yield(),
+        CLONE3 => syscall_clone3(args).await,
+        NANO_SLEEP => syscall_sleep(args).await,
+        SCHED_YIELD => syscall_yield().await,
         TIMES => syscall_time(args),
         UNAME => syscall_uname(args),
         GETTIMEOFDAY => syscall_get_time_of_day(args),
@@ -26,10 +26,10 @@ pub async fn task_syscall(syscall_id: task_syscall_id::TaskSyscallId, args: [usi
         GETPID => syscall_getpid(),
 
         GETPPID => syscall_getppid(),
-        // WAIT4 => syscall_wait4(args),
-        // GETRANDOM => syscall_getrandom(args),
+        WAIT4 => syscall_wait4(args).await,
+        GETRANDOM => syscall_getrandom(args).await,
 
-        // SIGSUSPEND => syscall_sigsuspend(args),
+        SIGSUSPEND => syscall_sigsuspend(args).await,
 
         SIGACTION => syscall_sigaction(args).await,
 
@@ -40,11 +40,11 @@ pub async fn task_syscall(syscall_id: task_syscall_id::TaskSyscallId, args: [usi
         // TGKILL => syscall_tgkill(args),
 
         SIGPROCMASK => syscall_sigprocmask(args).await,
-        // SIGALTSTACK => syscall_sigaltstack(args),
+        SIGALTSTACK => syscall_sigaltstack(args).await,
         // SIGRETURN => syscall_sigreturn(),
-        // EXIT_GROUP => syscall_exit(args),
+        EXIT_GROUP => syscall_exit(args).await,
         SET_TID_ADDRESS => syscall_set_tid_address(args).await,
-        // PRLIMIT64 => syscall_prlimit64(args),
+        PRLIMIT64 => syscall_prlimit64(args),
         CLOCK_GET_TIME => syscall_clock_get_time(args),
         GETUID => syscall_getuid(),
         GETEUID => syscall_geteuid(),
@@ -55,10 +55,10 @@ pub async fn task_syscall(syscall_id: task_syscall_id::TaskSyscallId, args: [usi
         // FUTEX => syscall_futex(args),
         // SET_ROBUST_LIST => syscall_set_robust_list(args),
         // GET_ROBUST_LIST => syscall_get_robust_list(args),
-        // SYSINFO => syscall_sysinfo(args),
-        // SETITIMER => syscall_settimer(args),
+        SYSINFO => syscall_sysinfo(args).await,
+        SETITIMER => syscall_settimer(args).await,
         GETTIMER => syscall_gettimer(args).await,
-        // SETSID => syscall_setsid(),
+        SETSID => syscall_setsid().await,
         GETRUSAGE => syscall_getrusage(args).await,
         UMASK => syscall_umask(args),
         // 不做处理即可
@@ -72,7 +72,7 @@ pub async fn task_syscall(syscall_id: task_syscall_id::TaskSyscallId, args: [usi
         GET_MEMPOLICY => Ok(0),
         CLOCK_GETRES => syscall_clock_getres(args).await,
         CLOCK_NANOSLEEP => syscall_clock_nanosleep(args).await,
-        // PRCTL => syscall_prctl(args),
+        PRCTL => syscall_prctl(args).await,
         // PIDFD_SEND_SIGNAL => syscall_pidfd_send_signal(args),
         // syscall below just for x86_64
         #[cfg(target_arch = "x86_64")]

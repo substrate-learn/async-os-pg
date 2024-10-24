@@ -1,4 +1,4 @@
-use axhal::{
+use async_axhal::{
     paging::MappingFlags,
     time::{current_time_nanos, nanos_to_ticks, MICROS_PER_SEC, NANOS_PER_MICROS, NANOS_PER_SEC},
 };
@@ -103,6 +103,7 @@ impl TimeSecs {
     }
 
     /// turn the TimeSecs to nano seconds
+    #[allow(unused)]
     pub fn turn_to_nanos(&self) -> usize {
         self.tv_sec * NSEC_PER_SEC + self.tv_nsec
     }
@@ -274,6 +275,7 @@ pub const RLIMIT_NOFILE: i32 = 7;
 pub const RLIMIT_AS: i32 = 9;
 
 /// robust list
+#[allow(unused)]
 #[repr(C)]
 pub struct RobustList {
     head: usize,
@@ -392,6 +394,7 @@ impl RusageFlags {
 /// sched_setscheduler时指定子进程是否继承父进程的调度策略
 pub const SCHED_RESET_ON_FORK: usize = 0x40000000;
 
+#[allow(unused)]
 #[repr(C)]
 #[derive(Clone, Copy)]
 /// sys_sched_setparam 使用的结构体
@@ -453,6 +456,7 @@ pub enum DirEntType {
 }
 
 /// Structure describing a generic socket address in libc.
+#[allow(unused)]
 #[repr(C)]
 pub struct LibcSocketAddr {
     common: u16,

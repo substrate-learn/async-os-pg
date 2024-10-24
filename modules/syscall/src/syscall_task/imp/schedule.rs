@@ -6,7 +6,7 @@ use axhal::mem::VirtAddr;
 use axprocess::{current_process, current_task, PID2PC, TID2TASK};
 use axtask::{SchedPolicy, SchedStatus};
 
-use crate::{SchedParam, SyscallError, SyscallResult};
+use crate::syscall::{SchedParam, SyscallError, SyscallResult};
 /// 获取对应任务的CPU适配集
 ///
 /// 若pid是进程ID，则获取对应的进程的主线程的信息

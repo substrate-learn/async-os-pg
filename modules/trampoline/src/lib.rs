@@ -4,7 +4,6 @@
 #![feature(fn_align)]
 #![feature(stmt_expr_attributes)]
 #![feature(doc_cfg)]
-#![cfg_attr(test, feature(noop_waker))]
 
 extern crate alloc;
 #[macro_use]
@@ -16,7 +15,6 @@ mod fs_api;
 mod init_api;
 mod task_api;
 mod trap_api;
-mod syscall;
 
 use core::task::{Context, Poll};
 pub use fs_api::fs_init;

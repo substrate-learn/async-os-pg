@@ -1,8 +1,8 @@
 //! 支持信号相关的 syscall
 //! 与信号处理相关的系统调用
 
-use axhal::cpu::this_cpu_id;
-use axlog::{debug, info};
+// use async_axhal::cpu::this_cpu_id;
+// use axlog::{debug, info};
 use executor::{current_executor, current_task, yield_now};
 use axsignal::signal_no::SignalNo;
 use axsignal::{action::SigAction, ucontext::SignalStack};
@@ -191,7 +191,7 @@ pub async fn syscall_sigprocmask(args: [usize; 6]) -> SyscallResult {
 //     let signum = args[1] as isize;
 //     if pid > 0 && signum > 0 {
 //         // 不关心是否成功
-//         let _ = axprocess::signal::send_signal_to_process(pid, signum, None);
+//         let _ = executor::signal::send_signal_to_process(pid, signum, None);
 //         Ok(0)
 //     } else if pid == 0 {
 //         Err(SyscallError::ESRCH)
@@ -240,29 +240,29 @@ pub async fn syscall_sigprocmask(args: [usize; 6]) -> SyscallResult {
 //     }
 // }
 
-// /// Set and get the alternate signal stack
-// pub fn syscall_sigaltstack(args: [usize; 6]) -> SyscallResult {
-//     let current_process = current_process();
-//     let ss = args[0] as *const SignalStack;
-//     let old_ss = args[1] as *mut SignalStack;
-//     if !ss.is_null() && current_process.manual_alloc_type_for_lazy(ss).is_err() {
-//         return Err(SyscallError::EFAULT);
-//     }
-//     let task_id = current_task().id().as_u64();
-//     let mut signal_modules = current_process.signal_modules.lock();
+/// Set and get the alternate signal stack
+pub async fn syscall_sigaltstack(args: [usize; 6]) -> SyscallResult {
+    let current_process = current_executor();
+    let ss = args[0] as *const SignalStack;
+    let old_ss = args[1] as *mut SignalStack;
+    if !ss.is_null() && current_process.manual_alloc_type_for_lazy(ss).await.is_err() {
+        return Err(SyscallError::EFAULT);
+    }
+    let task_id = current_task().id().as_u64();
+    let mut signal_modules = current_process.signal_modules.lock().await;
 
-//     if !old_ss.is_null() {
-//         if current_process.manual_alloc_type_for_lazy(old_ss).is_err() {
-//             return Err(SyscallError::EFAULT);
-//         }
-//         unsafe {
-//             *old_ss = signal_modules.get(&task_id).unwrap().alternate_stack;
-//         }
-//     }
+    if !old_ss.is_null() {
+        if current_process.manual_alloc_type_for_lazy(old_ss).await.is_err() {
+            return Err(SyscallError::EFAULT);
+        }
+        unsafe {
+            *old_ss = signal_modules.get(&task_id).unwrap().alternate_stack;
+        }
+    }
 
-//     if !ss.is_null() {
-//         signal_modules.get_mut(&task_id).unwrap().alternate_stack = unsafe { *ss };
-//     }
+    if !ss.is_null() {
+        signal_modules.get_mut(&task_id).unwrap().alternate_stack = unsafe { *ss };
+    }
 
-//     Ok(0)
-// }
+    Ok(0)
+}

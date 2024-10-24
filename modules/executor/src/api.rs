@@ -1,8 +1,34 @@
-use taskctx::CurrentTask;
-use crate::{flags::WaitStatus, CurrentExecutor, KERNEL_EXECUTOR_ID, TID2TASK};
-use core::{future::Future, task::Poll};
+use taskctx::{CurrentTask, Scheduler};
+use crate::{
+    flags::WaitStatus, CurrentExecutor, Executor, 
+    EXECUTORS, KERNEL_EXECUTOR, KERNEL_EXECUTOR_ID, TID2TASK, UTRAP_HANDLER
+};
+use core::{future::Future, pin::Pin, task::Poll};
 use alloc::{boxed::Box, string::String, sync::Arc};
 use taskctx::{BaseScheduler, Task, TaskInner, TaskRef, TaskState};
+
+// Initializes the executor (for the primary CPU).
+pub fn init(utrap_handler: fn() -> Pin<Box<dyn Future<Output = i32> + 'static>>) {
+    info!("Initialize executor...");
+    taskctx::init();
+    UTRAP_HANDLER.init_by(utrap_handler);
+    let kexecutor = Arc::new(Executor::new_init());
+    KERNEL_EXECUTOR.init_by(kexecutor.clone());
+    EXECUTORS.lock().insert(0, kexecutor.clone());
+    unsafe { CurrentExecutor::init_current(kexecutor) };
+    #[cfg(feature = "irq")]
+    sync::init();
+    info!("  use {} scheduler.", Scheduler::scheduler_name());
+}
+
+#[cfg(feature = "smp")]
+/// Initializes the executor for secondary CPUs.
+pub fn init_secondary() {
+    assert!(KERNEL_EXECUTOR.is_init());
+    taskctx::init();
+    let kexecutor = KERNEL_EXECUTOR.clone();
+    unsafe { CurrentExecutor::init_current(kexecutor) };
+}
 
 pub fn current_task_may_uninit() -> Option<CurrentTask> {
     CurrentTask::try_get()

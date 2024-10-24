@@ -2,11 +2,11 @@
 #![cfg_attr(all(not(test), not(doc)), no_std)]
 #![feature(stmt_expr_attributes)]
 #![feature(never_type)]
-#![allow(unused)]
+#![cfg_attr(test, feature(noop_waker))]
 
+extern crate alloc;
 #[macro_use]
 extern crate axlog;
-extern crate alloc;
 
 mod ctypes;
 use ctypes::*;

@@ -1,8 +1,9 @@
 use alloc::sync::Arc;
+use alloc::boxed::Box;
 use axerrno::{AxError, AxResult};
-use axfs::api::{FileIO, FileIOType, OpenFlags};
-use axsync::Mutex;
-use axtask::yield_now;
+use async_fs::api::{FileIO, FileIOType, OpenFlags};
+use sync::Mutex;
+use executor::yield_now;
 use bitflags::bitflags;
 
 bitflags! {
@@ -38,15 +39,16 @@ impl EventFd {
     }
 }
 
+#[async_trait::async_trait]
 impl FileIO for EventFd {
-    fn read(&self, buf: &mut [u8]) -> AxResult<usize> {
+    async fn read(&self, buf: &mut [u8]) -> AxResult<usize> {
         let len: usize = core::mem::size_of::<u64>();
         if buf.len() < len {
             return Err(AxError::InvalidInput);
         }
 
         loop {
-            let mut value_guard = self.value.lock();
+            let mut value_guard = self.value.lock().await;
             // If EFD_SEMAPHORE was not specified and the eventfd counter has a nonzero value, then a read returns 8 bytes containing that value,
             // and the counter's value is reset to zero.
             if !self.has_semaphore_set() && *value_guard != 0 {
@@ -74,14 +76,14 @@ impl FileIO for EventFd {
 
             if self.should_block() {
                 drop(value_guard);
-                yield_now()
+                yield_now().await;
             } else {
                 return Err(AxError::WouldBlock);
             }
         }
     }
 
-    fn write(&self, buf: &[u8]) -> AxResult<usize> {
+    async fn write(&self, buf: &[u8]) -> AxResult<usize> {
         let len: usize = core::mem::size_of::<u64>();
 
         // A write fails with the error EINVAL if the size of the supplied buffer is less than 8 bytes,
@@ -92,7 +94,7 @@ impl FileIO for EventFd {
         }
 
         loop {
-            let mut value_guard = self.value.lock();
+            let mut value_guard = self.value.lock().await;
             // The maximum value that may be stored in the counter is the largest unsigned 64-bit value minus 1 (i.e., 0xfffffffffffffffe).
             match value_guard.checked_add(val + 1) {
                 // no overflow
@@ -104,7 +106,7 @@ impl FileIO for EventFd {
                 None => {
                     if self.should_block() {
                         drop(value_guard);
-                        yield_now()
+                        yield_now().await;
                     } else {
                         return Err(AxError::WouldBlock);
                     }
@@ -113,33 +115,33 @@ impl FileIO for EventFd {
         }
     }
 
-    fn readable(&self) -> bool {
+    async fn readable(&self) -> bool {
         true
     }
 
-    fn writable(&self) -> bool {
+    async fn writable(&self) -> bool {
         true
     }
 
-    fn executable(&self) -> bool {
+    async fn executable(&self) -> bool {
         false
     }
 
-    fn get_type(&self) -> FileIOType {
+    async fn get_type(&self) -> FileIOType {
         FileIOType::Other
     }
 
     // The file descriptor is readable if the counter has a value greater than 0
-    fn ready_to_read(&self) -> bool {
-        *self.value.lock() > 0
+    async fn ready_to_read(&self) -> bool {
+        *self.value.lock().await > 0
     }
 
     // The file descriptor is writable if it is possible to write a value of at least "1" without blocking.
-    fn ready_to_write(&self) -> bool {
-        *self.value.lock() < u64::MAX - 1
+    async fn ready_to_write(&self) -> bool {
+        *self.value.lock().await < u64::MAX - 1
     }
 
-    fn get_status(&self) -> OpenFlags {
+    async fn get_status(&self) -> OpenFlags {
         let mut status = OpenFlags::RDWR;
         if self.flags & EventFdFlag::EFD_NONBLOCK.bits() != 0 {
             status |= OpenFlags::NON_BLOCK;
@@ -156,36 +158,63 @@ impl FileIO for EventFd {
 mod tests {
     use super::EventFd;
     use axerrno::AxError;
-    use axfs::api::FileIO;
+    use async_fs::api::FileIO;
+    use core::task::{Context, Poll, Waker};
+    use alloc::boxed::Box;
 
     #[test]
     fn test_read() {
         let event_fd = EventFd::new(42, 0);
         let event_fd_val = 0u64;
-        let len = event_fd.read(&mut event_fd_val.to_ne_bytes()).unwrap();
-
-        assert_eq!(42, event_fd_val);
-        assert_eq!(4, len);
+        let waker = Waker::noop();
+        let cx = &mut Context::from_waker(&waker);
+        if let Poll::Ready(len) = Box::pin(event_fd)
+            .read(&mut event_fd_val.to_ne_bytes())
+            .as_mut()
+            .poll(cx)
+            .map(|res| 
+                res.unwrap()
+            ) {
+            assert_eq!(42, event_fd_val);
+            assert_eq!(4, len);
+        } else {
+            panic!("read failed");
+        }
     }
 
     #[test]
     fn test_read_with_bad_input() {
         let event_fd = EventFd::new(42, 0);
         let event_fd_val = 0u32;
-        let result = event_fd.read(&mut event_fd_val.to_ne_bytes());
-        assert_eq!(Err(AxError::InvalidInput), result);
+        let waker = Waker::noop();
+        let cx = &mut Context::from_waker(&waker);
+        if let Poll::Ready(_) = Box::pin(event_fd)
+            .read(&mut event_fd_val.to_ne_bytes())
+            .as_mut()
+            .poll(cx)
+            .map(|result| {
+                assert_eq!(Err(AxError::InvalidInput), result);
+                0
+            }) {
+        } else {
+            panic!("read failed");
+        }
     }
 
     #[test]
     fn test_write() {
         let event_fd = EventFd::new(42, 0);
         let val = 12u64;
-        event_fd
+        let waker = Waker::noop();
+        let cx = &mut Context::from_waker(&waker);
+        let event_fd = Box::pin(event_fd);
+        let _ = event_fd
             .write(&val.to_ne_bytes()[0..core::mem::size_of::<u64>()])
-            .unwrap();
+            .as_mut()
+            .poll(cx);
 
         let event_fd_val = 0u64;
-        event_fd.read(&mut event_fd_val.to_ne_bytes()).unwrap();
+        let _ = event_fd.read(&mut event_fd_val.to_ne_bytes()).as_mut().poll(cx);
         assert_eq!(54, event_fd_val);
     }
 }

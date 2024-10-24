@@ -1,5 +1,5 @@
 use async_fs::api::FileIO;
-use axhal::{mem::VirtAddr, time::current_ticks};
+use async_axhal::{mem::VirtAddr, time::current_ticks};
 use executor::{current_executor, yield_now};
 use axsignal::signal_no::SignalNo;
 use bitflags::bitflags;

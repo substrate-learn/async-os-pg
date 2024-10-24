@@ -10,12 +10,12 @@ use alloc::string::ToString;
 
 use crate::{
     syscall_fs::{
-        ctype::{file::new_fd, FileDesc},
+        ctype::{file::new_fd, pidfd::new_pidfd, FileDesc},
         solve_path,
     },
     DirEnt, DirEntType, Fcntl64Cmd, RenameFlags, SyscallError, SyscallResult, TimeSecs,
 };
-use axhal::mem::VirtAddr;
+use async_axhal::mem::VirtAddr;
 use executor::{
     current_executor,
     link::{FilePath, AT_FDCWD},
@@ -663,12 +663,12 @@ pub async fn syscall_utimensat(args: [usize; 6]) -> SyscallResult {
     }
 }
 
-// /// To open a file descriptor that refers to the PID directory of the given process
-// pub async fn syscall_pidfd_open(args: [usize; 6]) -> SyscallResult {
-//     let pid = args[0] as u32;
-//     let flags = args[1] as u32;
-//     new_pidfd(
-//         pid as u64,
-//         OpenFlags::from_bits(flags).ok_or(SyscallError::EINVAL)?,
-//     )
-// }
+/// To open a file descriptor that refers to the PID directory of the given process
+pub async fn syscall_pidfd_open(args: [usize; 6]) -> SyscallResult {
+    let pid = args[0] as u32;
+    let flags = args[1] as u32;
+    new_pidfd(
+        pid as u64,
+        OpenFlags::from_bits(flags).ok_or(SyscallError::EINVAL)?,
+    ).await
+}

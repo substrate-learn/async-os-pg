@@ -2,7 +2,7 @@ extern crate alloc;
 use crate::{normal_file_mode, StMode, SyscallError};
 use alloc::string::ToString;
 use alloc::vec::Vec;
-use async_fs::api::{lookup, path_exists, FileIO, Kstat, OpenFlags};
+use async_fs::api::{path_exists, FileIO, Kstat, OpenFlags};
 use axlog::{debug, info};
 use executor::link::FilePath;
 use sync::Mutex;
@@ -102,7 +102,7 @@ pub async fn get_stat_in_fs(path: &FilePath) -> Result<Kstat, SyscallError> {
     // 根目录算作一个简单的目录文件，不使用特殊的stat
     // 否则在fat32中查找
     let real_path = path.path();
-    let mut ans = Kstat::default();
+    let mut _ans = Kstat::default();
     info!("get_stat_in_fs: {}", real_path);
     // if real_path.starts_with("/var")
     //     || real_path.starts_with("/dev")

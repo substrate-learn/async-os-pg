@@ -4,8 +4,8 @@
 extern crate alloc;
 use crate::{SigMaskFlag, SyscallError, SyscallResult};
 use alloc::sync::Arc;
-use axhal::{mem::VirtAddr, time::current_ticks};
-use axprocess::current_process;
+use async_axhal::{mem::VirtAddr, time::current_ticks};
+use executor::current_executor;
 
 use crate::syscall_fs::ctype::epoll::{EpollCtl, EpollEvent, EpollFile};
 
@@ -18,11 +18,11 @@ use crate::syscall_fs::ctype::epoll::{EpollCtl, EpollEvent, EpollFile};
 /// If flag equals to EPOLL_CLOEXEC, than set the cloexec flag for the fd
 /// # Arguments
 /// * `flag` - usize
-pub fn syscall_epoll_create1(args: [usize; 6]) -> SyscallResult {
+pub async fn syscall_epoll_create1(args: [usize; 6]) -> SyscallResult {
     let _flag = args[0];
     let file = EpollFile::new();
-    let process = current_process();
-    let mut fd_table = process.fd_manager.fd_table.lock();
+    let process = current_executor();
+    let mut fd_table = process.fd_manager.fd_table.lock().await;
     if let Ok(num) = process.alloc_fd(&mut fd_table) {
         fd_table[num] = Some(Arc::new(file));
         Ok(num as isize)
@@ -41,16 +41,16 @@ pub fn syscall_epoll_create1(args: [usize; 6]) -> SyscallResult {
 /// * `op`: i32, 修改操作的类型
 /// * `fd`: i32, 接受事件的文件的fd
 /// * `event`: *const EpollEvent, 接受的事件
-pub fn syscall_epoll_ctl(args: [usize; 6]) -> SyscallResult {
+pub async fn syscall_epoll_ctl(args: [usize; 6]) -> SyscallResult {
     let epfd = args[0] as i32;
     let op = args[1] as i32;
     let fd = args[2] as i32;
     let event = args[3] as *const EpollEvent;
-    let process = current_process();
-    if process.manual_alloc_type_for_lazy(event).is_err() {
+    let process = current_executor();
+    if process.manual_alloc_type_for_lazy(event).await.is_err() {
         return Err(SyscallError::EFAULT);
     }
-    let fd_table = process.fd_manager.fd_table.lock();
+    let fd_table = process.fd_manager.fd_table.lock().await;
     let event = unsafe { *event };
     if fd_table[fd as usize].is_none() {
         return Err(SyscallError::EBADF);
@@ -62,7 +62,7 @@ pub fn syscall_epoll_ctl(args: [usize; 6]) -> SyscallResult {
     };
     if let Some(file) = fd_table[epfd as usize].as_ref() {
         if let Some(epoll_file) = file.as_any().downcast_ref::<EpollFile>() {
-            epoll_file.epoll_ctl(op, fd, event)
+            epoll_file.epoll_ctl(op, fd, event).await
         } else {
             Err(SyscallError::EBADF)
         }
@@ -80,7 +80,7 @@ pub fn syscall_epoll_ctl(args: [usize; 6]) -> SyscallResult {
 /// * `timeout`: i32, 超时时间，是一段相对时间，需要手动转化为绝对时间
 ///
 /// ret: 实际写入的响应事件数目
-pub fn syscall_epoll_wait(args: [usize; 6]) -> SyscallResult {
+pub async fn syscall_epoll_wait(args: [usize; 6]) -> SyscallResult {
     let epfd = args[0] as i32;
     let event = args[1] as *mut EpollEvent;
     let max_event = args[2] as i32;
@@ -89,22 +89,22 @@ pub fn syscall_epoll_wait(args: [usize; 6]) -> SyscallResult {
         return Err(SyscallError::EINVAL);
     }
     let max_event = max_event as usize;
-    let process = current_process();
+    let process = current_executor();
     let start: VirtAddr = (event as usize).into();
     // FIXME: this is a temporary solution
     // the memory will out of mapped memory if the max_event is too large
     // maybe give the max_event a limit is a better solution
     let max_event = core::cmp::min(max_event, 400);
     let end = start + max_event * core::mem::size_of::<EpollEvent>();
-    if process.manual_alloc_range_for_lazy(start, end).is_err() {
+    if process.manual_alloc_range_for_lazy(start, end).await.is_err() {
         return Err(SyscallError::EFAULT);
     }
 
     let epoll_file = {
-        let fd_table = process.fd_manager.fd_table.lock();
+        let fd_table = process.fd_manager.fd_table.lock().await;
         if let Some(file) = fd_table[epfd as usize].as_ref() {
             if let Some(epoll_file) = file.as_any().downcast_ref::<EpollFile>() {
-                epoll_file.clone()
+                epoll_file.clone().await
             } else {
                 return Err(SyscallError::EBADF);
             }
@@ -118,7 +118,7 @@ pub fn syscall_epoll_wait(args: [usize; 6]) -> SyscallResult {
     } else {
         usize::MAX
     };
-    let ret_events = epoll_file.epoll_wait(timeout);
+    let ret_events = epoll_file.epoll_wait(timeout).await;
     if ret_events.is_err() {
         return Err(SyscallError::EINTR);
     }
@@ -137,14 +137,14 @@ pub fn syscall_epoll_wait(args: [usize; 6]) -> SyscallResult {
 /// - Set the signal mask of the current process to the value pointed to by sigmask
 /// - Invoke syscall_epoll_wait
 /// - Restore the signal mask of the current process
-pub fn syscall_epoll_pwait(args: [usize; 6]) -> SyscallResult {
+pub async fn syscall_epoll_pwait(args: [usize; 6]) -> SyscallResult {
     let sigmask = args[4] as *const usize;
 
-    let process = current_process();
+    let process = current_executor();
     if sigmask.is_null() {
-        return syscall_epoll_wait(args);
+        return syscall_epoll_wait(args).await;
     }
-    if process.manual_alloc_type_for_lazy(sigmask).is_err() {
+    if process.manual_alloc_type_for_lazy(sigmask).await.is_err() {
         return Err(SyscallError::EFAULT);
     }
     let old_mask: usize = 0;
@@ -156,8 +156,8 @@ pub fn syscall_epoll_pwait(args: [usize; 6]) -> SyscallResult {
         0,
         0,
     ];
-    crate::syscall_task::syscall_sigprocmask(temp_args)?;
-    let ret = syscall_epoll_wait(args)?;
+    crate::syscall_task::syscall_sigprocmask(temp_args).await?;
+    let ret = syscall_epoll_wait(args).await?;
     let temp_args = [
         SigMaskFlag::Setmask as usize,
         &old_mask as *const _ as usize,
@@ -166,6 +166,6 @@ pub fn syscall_epoll_pwait(args: [usize; 6]) -> SyscallResult {
         0,
         0,
     ];
-    crate::syscall_task::syscall_sigprocmask(temp_args)?;
+    crate::syscall_task::syscall_sigprocmask(temp_args).await?;
     Ok(ret)
 }

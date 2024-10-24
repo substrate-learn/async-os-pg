@@ -1,11 +1,11 @@
 //! 获取文件系统状态信息
 //!
 
-use crate::{syscall_fs::solve_path, SyscallError, SyscallResult};
+use crate::{get_fs_stat, syscall_fs::solve_path, FsStat, FsStatx, SyscallError, SyscallResult};
 use async_fs::api::Kstat;
 use axlog::{debug, info};
 use executor::{
-    current_executor, link::raw_ptr_to_ref_str,
+    current_executor, link::{raw_ptr_to_ref_str, FilePath, AT_FDCWD},
     // link::{raw_ptr_to_ref_str, FilePath, AT_FDCWD},
 };
 
@@ -113,46 +113,46 @@ pub async fn syscall_fstatat(args: [usize; 6]) -> SyscallResult {
 //     syscall_fstatat(temp_args)
 // }
 
-// /// 获取文件系统的信息
-// /// # Arguments
-// /// * `path` - *const u8
-// /// * `stat` - *mut FsStat
-// pub fn syscall_statfs(args: [usize; 6]) -> SyscallResult {
-//     let path = args[0] as *const u8;
-//     let stat = args[1] as *mut FsStat;
-//     let _file_path = solve_path(AT_FDCWD, Some(path), false)?;
-//     axlog::warn!("Only support fs_stat for root");
+/// 获取文件系统的信息
+/// # Arguments
+/// * `path` - *const u8
+/// * `stat` - *mut FsStat
+pub async fn syscall_statfs(args: [usize; 6]) -> SyscallResult {
+    let path = args[0] as *const u8;
+    let stat = args[1] as *mut FsStat;
+    let _file_path = solve_path(AT_FDCWD, Some(path), false).await?;
+    axlog::warn!("Only support fs_stat for root");
 
-//     unsafe {
-//         *stat = get_fs_stat();
-//     }
+    unsafe {
+        *stat = get_fs_stat();
+    }
 
-//     Ok(0)
-// }
+    Ok(0)
+}
 
-// /// get file status (extended)
-// /// https://man7.org/linux/man-pages/man2/statx.2.html
-// /// This function returns information about a file, storing it in the
-// /// buffer pointed to by statxbuf.  The returned buffer is a
-// /// structure of the following type
-// ///
-// ///
-// pub fn syscall_statx(args: [usize; 6]) -> SyscallResult {
-//     let dir_fd = args[0];
-//     let path = args[1] as *const u8;
-//     let stat = args[4] as *mut FsStatx;
-//     let file_path = solve_path(dir_fd, Some(path), false)?;
-//     if !axfs::api::path_exists(file_path.path()) {
-//         return Err(SyscallError::ENOENT);
-//     }
-//     if let Ok(p) = FilePath::new("/") {
-//         if file_path.equal_to(&p) {
-//             // 目前只支持访问根目录文件系统的信息
-//             axlog::warn!("Only support fs_stat for root");
-//             unsafe {
-//                 *stat = FsStatx::new();
-//             }
-//         }
-//     }
-//     Ok(0)
-// }
+/// get file status (extended)
+/// https://man7.org/linux/man-pages/man2/statx.2.html
+/// This function returns information about a file, storing it in the
+/// buffer pointed to by statxbuf.  The returned buffer is a
+/// structure of the following type
+///
+///
+pub async fn syscall_statx(args: [usize; 6]) -> SyscallResult {
+    let dir_fd = args[0];
+    let path = args[1] as *const u8;
+    let stat = args[4] as *mut FsStatx;
+    let file_path = solve_path(dir_fd, Some(path), false).await?;
+    if !async_fs::api::path_exists(file_path.path()).await {
+        return Err(SyscallError::ENOENT);
+    }
+    if let Ok(p) = FilePath::new("/").await {
+        if file_path.equal_to(&p) {
+            // 目前只支持访问根目录文件系统的信息
+            axlog::warn!("Only support fs_stat for root");
+            unsafe {
+                *stat = FsStatx::new();
+            }
+        }
+    }
+    Ok(0)
+}
