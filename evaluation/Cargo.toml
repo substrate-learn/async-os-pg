@@ -1,0 +1,8 @@
+[package]
+name = "evaluation"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+async_utils = { path = "../modules/async_utils"}
+async-trait = "0.1.83"
